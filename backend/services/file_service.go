@@ -38,8 +38,20 @@ func (fs *FileService) CreateFileRecord(userID, filename string, size int64, con
 		MinioPath:   minioPath,
 		PublicLink:  publicLink,
 		AccessList:  []models.AccessEntry{}, // Initialize empty access list
+		Ancestors:   []primitive.ObjectID{}, // Başlangıçta boş
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
+	}
+
+	// Eğer folderID varsa, parent klasörün ancestors'ını al ve kendi ID'mizi ekle
+	if folderID != nil && *folderID != "" {
+		// Önce bu klasörün bilgilerini al
+		parentFolder, err := FolderServiceInstance.GetFolderByID(*folderID)
+		if err == nil {
+			// Parent'ın ancestors'ına kendi ID'mizi ekle
+			file.Ancestors = append(parentFolder.Ancestors, parentFolder.ID)
+			file.ParentID = &parentFolder.ID
+		}
 	}
 
 	_, err = database.FileCollection.InsertOne(ctx, file)

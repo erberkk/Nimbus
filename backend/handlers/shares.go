@@ -397,6 +397,16 @@ func UpdateAccessPermission() fiber.Handler {
 			})
 		}
 
+		// Hiyerarşik propagation - tüm alt öğeleri güncelle
+		if req.Permission != "none" {
+			// Yeni erişim ekleme veya güncelleme - tüm alt öğeleri de güncelle
+			err = helpers.PropagateAccessToChildren(resourceOID, req.UserID, req.Permission, userID)
+			if err != nil {
+				fmt.Printf("DEBUG: Propagation error: %v\n", err)
+				// Propagation başarısız olsa da ana işlem başarılı, devam et
+			}
+		}
+
 		return c.JSON(fiber.Map{
 			"message": "Access permission updated successfully",
 		})
@@ -495,6 +505,13 @@ func RemoveUserAccess() fiber.Handler {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "Resource or access entry not found",
 			})
+		}
+
+		// Hiyerarşik propagation - tüm alt öğelerden de kullanıcıyı çıkar
+		err = helpers.RemoveAccessFromChildren(resourceOID, userIDToRemove)
+		if err != nil {
+			fmt.Printf("DEBUG: Remove propagation error: %v\n", err)
+			// Propagation başarısız olsa da ana işlem başarılı, devam et
 		}
 
 		return c.JSON(fiber.Map{

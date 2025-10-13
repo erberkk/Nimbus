@@ -60,9 +60,20 @@ func (fs *FolderService) CreateFolder(userID, name, color, folderID string) (*mo
 		UpdatedAt:  time.Now(),
 	}
 
-	// Eğer parent folder varsa, folder_id'yi set et
+	// Eğer parent folder varsa, folder_id'yi set et ve ancestors'ı hesapla
 	if folderID != "" {
 		folder.FolderID = &folderID
+
+		// Parent klasörün ancestors'ını al ve kendi ID'mizi ekle
+		parentFolder, err := fs.GetFolderByID(folderID)
+		if err == nil {
+			// Parent'ın ancestors'ına kendi ID'mizi ekle
+			folder.Ancestors = append(parentFolder.Ancestors, parentFolder.ID)
+			folder.ParentID = &parentFolder.ID
+		}
+	} else {
+		// Root klasör - ancestors boş
+		folder.Ancestors = []primitive.ObjectID{}
 	}
 
 	_, err = database.FolderCollection.InsertOne(ctx, folder)
