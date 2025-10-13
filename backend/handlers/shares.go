@@ -80,6 +80,8 @@ func GetResourceShares() fiber.Handler {
 			return c.JSON(fiber.Map{
 				"resource_id":   resourceOID.Hex(),
 				"resource_type": "folder",
+				"user_id":       folder.UserID,
+				"public_link":   folder.PublicLink,
 				"access_list":   folder.AccessList,
 				"shared_with":   sharedUsers,
 			})
@@ -108,6 +110,8 @@ func GetResourceShares() fiber.Handler {
 		return c.JSON(fiber.Map{
 			"resource_id":   resourceOID.Hex(),
 			"resource_type": "file",
+			"user_id":       file.UserID,
+			"public_link":   file.PublicLink,
 			"access_list":   file.AccessList,
 			"shared_with":   sharedUsers,
 		})
@@ -558,4 +562,128 @@ func getAccessTypeFromList(accessList []models.AccessEntry, userID string) strin
 		}
 	}
 	return "read" // default
+}
+
+// GetResourceByPublicLink - Public link ile resource'a erişim sağla ve kullanıcıyı otomatik ekle
+func GetResourceByPublicLink() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Giriş yapmanız gerekiyor",
+			})
+		}
+
+		publicLink := c.Params("publicLink")
+		if publicLink == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Geçersiz public link",
+			})
+		}
+
+		ctx := context.Background()
+
+		// Önce file'larda ara
+		var file models.File
+		err = database.FileCollection.FindOne(ctx, bson.M{"public_link": publicLink}).Decode(&file)
+		if err == nil {
+			// File bulundu, kullanıcıyı access list'e ekle
+			accessEntry := models.AccessEntry{
+				UserID:     userID,
+				AccessType: "read",
+				GrantedAt:  time.Now(),
+				GrantedBy:  file.UserID,
+			}
+
+			// Kullanıcı zaten access list'te var mı kontrol et
+			existingAccess := false
+			for _, access := range file.AccessList {
+				if access.UserID == userID {
+					existingAccess = true
+					break
+				}
+			}
+
+			if !existingAccess {
+				update := bson.M{
+					"$push": bson.M{"access_list": accessEntry},
+					"$set":  bson.M{"updated_at": time.Now()},
+				}
+				_, err = database.FileCollection.UpdateOne(ctx, bson.M{"_id": file.ID}, update)
+				if err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"error": "Kullanıcı erişim listesine eklenemedi",
+					})
+				}
+			}
+
+			return c.JSON(fiber.Map{
+				"resource": models.FileResponse{
+					ID:          file.ID.Hex(),
+					Filename:    file.Filename,
+					Size:        file.Size,
+					ContentType: file.ContentType,
+					PublicLink:  file.PublicLink,
+					AccessList:  file.AccessList,
+					CreatedAt:   file.CreatedAt,
+					UpdatedAt:   file.UpdatedAt,
+				},
+				"resource_type": "file",
+			})
+		}
+
+		// File bulunamadı, folder'larda ara
+		var folder models.Folder
+		err = database.FolderCollection.FindOne(ctx, bson.M{"public_link": publicLink}).Decode(&folder)
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Geçersiz public link veya resource bulunamadı",
+			})
+		}
+
+		// Folder bulundu, kullanıcıyı access list'e ekle
+		accessEntry := models.AccessEntry{
+			UserID:     userID,
+			AccessType: "read",
+			GrantedAt:  time.Now(),
+			GrantedBy:  folder.UserID,
+		}
+
+		// Kullanıcı zaten access list'te var mı kontrol et
+		existingAccess := false
+		for _, access := range folder.AccessList {
+			if access.UserID == userID {
+				existingAccess = true
+				break
+			}
+		}
+
+		if !existingAccess {
+			update := bson.M{
+				"$push": bson.M{"access_list": accessEntry},
+				"$set":  bson.M{"updated_at": time.Now()},
+			}
+			_, err = database.FolderCollection.UpdateOne(ctx, bson.M{"_id": folder.ID}, update)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Kullanıcı erişim listesine eklenemedi",
+				})
+			}
+		}
+
+		return c.JSON(fiber.Map{
+			"resource": models.FolderResponse{
+				ID:         folder.ID.Hex(),
+				Name:       folder.Name,
+				Color:      folder.Color,
+				PublicLink: folder.PublicLink,
+				ItemCount:  0, // Bu daha sonra hesaplanacak
+				AccessList: folder.AccessList,
+				FolderID:   folder.FolderID,
+				CreatedAt:  folder.CreatedAt,
+				UpdatedAt:  folder.UpdatedAt,
+			},
+			"resource_type": "folder",
+		})
+	}
 }

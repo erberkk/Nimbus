@@ -22,6 +22,7 @@ type File struct {
 	Size        int64              `json:"size" bson:"size"`
 	ContentType string             `json:"content_type" bson:"content_type"`
 	MinioPath   string             `json:"minio_path" bson:"minio_path"`
+	PublicLink  string             `json:"public_link" bson:"public_link"`
 	AccessList  []AccessEntry      `json:"access_list" bson:"access_list"`
 	CreatedAt   time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt   time.Time          `json:"updated_at" bson:"updated_at"`
@@ -32,6 +33,7 @@ type FileResponse struct {
 	Filename    string        `json:"filename"`
 	Size        int64         `json:"size"`
 	ContentType string        `json:"content_type"`
+	PublicLink  string        `json:"public_link"`
 	AccessList  []AccessEntry `json:"access_list"`
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`

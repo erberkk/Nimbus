@@ -200,6 +200,11 @@ export const shareApi = {
   removeUserAccess: (resourceId, userId) => {
     return api.delete(`/shares/access/${resourceId}/${userId}`);
   },
+
+  // Get resource by public link (automatically adds user to access list with read permission)
+  getResourceByPublicLink: publicLink => {
+    return api.get(`/shares/public/${publicLink}`);
+  },
 };
 
 // User API

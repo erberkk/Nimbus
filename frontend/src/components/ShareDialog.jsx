@@ -21,6 +21,8 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonIcon from '@mui/icons-material/Person';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import LinkIcon from '@mui/icons-material/Link';
 import UserSearch from './UserSearch';
 import { shareApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,12 +35,14 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
   const [publicLink, setPublicLink] = useState(null);
   const [copied, setCopied] = useState(false);
   const [userAccessLevel, setUserAccessLevel] = useState('owner'); // owner, write, read
+  const [resourcePublicLink, setResourcePublicLink] = useState(null);
 
   useEffect(() => {
     if (open && resource) {
       setShares([]);
       setPublicLink(null);
       setCopied(false);
+      setResourcePublicLink(resource.public_link || null);
       loadShares();
     }
   }, [open, resource]);
@@ -48,13 +52,18 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
       setLoading(true);
       const data = await shareApi.getResourceShares(resource.id);
       setShares(data || {});
-      
+
+      // Set public link from response
+      if (data && data.public_link) {
+        setResourcePublicLink(data.public_link);
+      }
+
       // Determine user's access level
       if (data && data.access_list) {
         const userAccess = data.access_list.find(access => access.user_id === user.id);
         if (userAccess) {
           setUserAccessLevel(userAccess.access_type); // read or write
-        } else if (data.resource_id && user.id === resource.user_id) {
+        } else if (data.user_id && user.id === data.user_id) {
           setUserAccessLevel('owner');
         } else {
           setUserAccessLevel('read'); // Default for shared users
@@ -66,9 +75,24 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
       console.error('Failed to load shares:', error);
       window.toast?.error('Paylaşımlar yüklenemedi');
       setShares({});
+      setResourcePublicLink(null);
       setUserAccessLevel('owner'); // Default fallback
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCopyPublicLink = async () => {
+    if (!resourcePublicLink) return;
+
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/share/${resourcePublicLink}`);
+      setCopied(true);
+      window.toast?.success('Bağlantı kopyalandı');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      window.toast?.error('Bağlantı kopyalanamadı');
     }
   };
 
@@ -307,6 +331,47 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
                   </ListItem>
                 ))}
               </List>
+            </Box>
+
+            {/* Public Link Section */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <LinkIcon fontSize="small" />
+                Public Bağlantı
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Bu bağlantıyı herkesle paylaşabilirsiniz. Bağlantıya tıklayan giriş yapmış kullanıcılar dosyayı görüntüleyebilir.
+              </Typography>
+
+              {resourcePublicLink ? (
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  p: 1.5,
+                  bgcolor: 'grey.50',
+                  borderRadius: 1,
+                  border: '1px solid',
+                  borderColor: 'grey.200'
+                }}>
+                  <Typography variant="body2" sx={{ flex: 1, fontFamily: 'monospace' }}>
+                    {`${window.location.origin}/share/${resourcePublicLink}`}
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<ContentCopyIcon />}
+                    onClick={handleCopyPublicLink}
+                    disabled={copied}
+                  >
+                    {copied ? 'Kopyalandı!' : 'Kopyala'}
+                  </Button>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="error">
+                  Public link oluşturulamadı
+                </Typography>
+              )}
             </Box>
 
             <Divider sx={{ my: 2 }} />

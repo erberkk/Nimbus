@@ -12,6 +12,7 @@ type Folder struct {
 	FolderID   *string            `json:"folder_id" bson:"folder_id,omitempty"`
 	Name       string             `json:"name" bson:"name"`
 	Color      string             `json:"color" bson:"color,omitempty"`
+	PublicLink string             `json:"public_link" bson:"public_link"`
 	AccessList []AccessEntry      `json:"access_list" bson:"access_list"`
 	CreatedAt  time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt  time.Time          `json:"updated_at" bson:"updated_at"`
@@ -21,6 +22,7 @@ type FolderResponse struct {
 	ID         string        `json:"id"`
 	Name       string        `json:"name"`
 	Color      string        `json:"color"`
+	PublicLink string        `json:"public_link"`
 	ItemCount  int           `json:"item_count"`
 	AccessList []AccessEntry `json:"access_list"`
 	FolderID   *string       `json:"folder_id"`

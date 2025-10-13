@@ -47,13 +47,15 @@ func CreateFolder(cfg *config.Config) fiber.Handler {
 		return c.Status(201).JSON(fiber.Map{
 			"message": "Klasör başarıyla oluşturuldu",
 			"folder": models.FolderResponse{
-				ID:        folder.ID.Hex(),
-				Name:      folder.Name,
-				Color:     folder.Color,
-				ItemCount: 0,
-				FolderID:  folder.FolderID,
-				CreatedAt: folder.CreatedAt,
-				UpdatedAt: folder.UpdatedAt,
+				ID:         folder.ID.Hex(),
+				Name:       folder.Name,
+				Color:      folder.Color,
+				PublicLink: folder.PublicLink,
+				ItemCount:  0,
+				AccessList: folder.AccessList,
+				FolderID:   folder.FolderID,
+				CreatedAt:  folder.CreatedAt,
+				UpdatedAt:  folder.UpdatedAt,
 			},
 		})
 	}

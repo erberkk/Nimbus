@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"nimbus-backend/database"
+	"nimbus-backend/helpers"
 	"nimbus-backend/models"
 	"time"
 
@@ -42,11 +43,18 @@ func (fs *FolderService) CreateFolder(userID, name, color, folderID string) (*mo
 		return nil, fmt.Errorf("bu isimde bir klasör zaten mevcut")
 	}
 
+	// Public link oluştur
+	publicLink, err := helpers.GeneratePublicLink()
+	if err != nil {
+		return nil, fmt.Errorf("public link oluşturulamadı: %v", err)
+	}
+
 	folder := &models.Folder{
 		ID:         primitive.NewObjectID(),
 		UserID:     userID,
 		Name:       name,
 		Color:      color,
+		PublicLink: publicLink,
 		AccessList: []models.AccessEntry{}, // Initialize empty access list
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),

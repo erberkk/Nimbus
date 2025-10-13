@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"nimbus-backend/database"
+	"nimbus-backend/helpers"
 	"nimbus-backend/models"
 	"time"
 
@@ -21,6 +22,12 @@ func (fs *FileService) CreateFileRecord(userID, filename string, size int64, con
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Public link oluştur
+	publicLink, err := helpers.GeneratePublicLink()
+	if err != nil {
+		return nil, fmt.Errorf("public link oluşturulamadı: %v", err)
+	}
+
 	file := &models.File{
 		ID:          primitive.NewObjectID(),
 		UserID:      userID,
@@ -29,12 +36,13 @@ func (fs *FileService) CreateFileRecord(userID, filename string, size int64, con
 		Size:        size,
 		ContentType: contentType,
 		MinioPath:   minioPath,
+		PublicLink:  publicLink,
 		AccessList:  []models.AccessEntry{}, // Initialize empty access list
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
-	_, err := database.FileCollection.InsertOne(ctx, file)
+	_, err = database.FileCollection.InsertOne(ctx, file)
 	if err != nil {
 		return nil, fmt.Errorf("dosya kaydı oluşturulamadı: %v", err)
 	}

@@ -102,6 +102,8 @@ func CreateFile(cfg *config.Config) fiber.Handler {
 				Filename:    file.Filename,
 				Size:        file.Size,
 				ContentType: file.ContentType,
+				PublicLink:  file.PublicLink,
+				AccessList:  file.AccessList,
 				CreatedAt:   file.CreatedAt,
 				UpdatedAt:   file.UpdatedAt,
 			},

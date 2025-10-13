@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
+import SharePage from './pages/SharePage';
 import Navbar from './components/Navbar';
 import ToastProvider from './components/ToastProvider';
 import './i18n';
@@ -34,6 +35,16 @@ function AppRoutes() {
       <Route
         path="/login"
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+      />
+      <Route
+        path="/share/:publicLink"
+        element={
+          isAuthenticated ? (
+            <SharePage />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
       <Route
         path="/dashboard"
