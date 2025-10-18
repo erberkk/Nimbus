@@ -4,6 +4,7 @@ import (
 	"log"
 	"nimbus-backend/config"
 	"nimbus-backend/helpers"
+	"nimbus-backend/middleware"
 	"nimbus-backend/models"
 	"nimbus-backend/services"
 	"time"
@@ -18,23 +19,17 @@ func GetUploadPresignedURL(cfg *config.Config) fiber.Handler {
 
 		filename := c.Query("filename")
 		if filename == "" {
-			return c.Status(400).JSON(fiber.Map{
-				"error": "filename parametresi gerekli",
-			})
+			return middleware.BadRequestResponse(c, "filename parametresi gerekli")
 		}
 
 		contentType := c.Query("content_type")
 		if contentType == "" {
-			return c.Status(400).JSON(fiber.Map{
-				"error": "content_type parametresi gerekli",
-			})
+			return middleware.BadRequestResponse(c, "content_type parametresi gerekli")
 		}
 
 		// Güvenlik kontrolü
 		if err := services.MinioService.ValidateFile(filename, contentType, 0); err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"error": err.Error(),
-			})
+			return middleware.BadRequestResponse(c, err.Error())
 		}
 
 		// 1 saatlik presigned URL oluştur
@@ -45,9 +40,7 @@ func GetUploadPresignedURL(cfg *config.Config) fiber.Handler {
 		)
 		if err != nil {
 			log.Printf("Presigned URL oluşturma hatası: %v", err)
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Presigned URL oluşturulamadı",
-			})
+			return middleware.InternalServerErrorResponse(c, "Presigned URL oluşturulamadı")
 		}
 
 		// MinIO path oluştur

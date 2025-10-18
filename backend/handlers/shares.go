@@ -60,23 +60,19 @@ func GetResourceShares() fiber.Handler {
 			}
 
 			// For folders, return access list info
-			sharedUsers := []models.UserResponse{}
-			for _, access := range folder.AccessList {
-				var user models.User
-				userOID, err := primitive.ObjectIDFromHex(access.UserID)
-				if err != nil {
-					continue
-				}
-				userErr := database.UserCollection.FindOne(context.Background(), bson.M{
-					"_id": userOID,
-				}).Decode(&user)
-				if userErr == nil {
-					sharedUsers = append(sharedUsers, models.UserResponse{
-						ID:    user.ID.Hex(),
-						Email: user.Email,
-						Name:  user.Name,
-					})
-				}
+			users, err := services.AccessControlServiceInstance.GetAccessibleUsers("folder", resourceID)
+			if err != nil {
+				log.Printf("Error getting accessible users: %v", err)
+				users = []models.User{}
+			}
+
+			sharedUsers := make([]models.UserResponse, 0, len(users))
+			for _, user := range users {
+				sharedUsers = append(sharedUsers, models.UserResponse{
+					ID:    user.ID.Hex(),
+					Email: user.Email,
+					Name:  user.Name,
+				})
 			}
 
 			return c.JSON(fiber.Map{
@@ -90,23 +86,19 @@ func GetResourceShares() fiber.Handler {
 		}
 
 		// For files, return access list info
-		sharedUsers := []models.UserResponse{}
-		for _, access := range file.AccessList {
-			var user models.User
-			userOID, err := primitive.ObjectIDFromHex(access.UserID)
-			if err != nil {
-				continue
-			}
-			userErr := database.UserCollection.FindOne(context.Background(), bson.M{
-				"_id": userOID,
-			}).Decode(&user)
-			if userErr == nil {
-				sharedUsers = append(sharedUsers, models.UserResponse{
-					ID:    user.ID.Hex(),
-					Email: user.Email,
-					Name:  user.Name,
-				})
-			}
+		users, err := services.AccessControlServiceInstance.GetAccessibleUsers("file", resourceID)
+		if err != nil {
+			log.Printf("Error getting accessible users: %v", err)
+			users = []models.User{}
+		}
+
+		sharedUsers := make([]models.UserResponse, 0, len(users))
+		for _, user := range users {
+			sharedUsers = append(sharedUsers, models.UserResponse{
+				ID:    user.ID.Hex(),
+				Email: user.Email,
+				Name:  user.Name,
+			})
 		}
 
 		return c.JSON(fiber.Map{
@@ -118,6 +110,42 @@ func GetResourceShares() fiber.Handler {
 			"shared_with":   sharedUsers,
 		})
 	}
+}
+
+// getRecursiveItemCount - Recursively count all accessible items in a folder
+func getRecursiveItemCount(userID string, folderID string) (int64, error) {
+	// Get direct subfolders and files
+	subFolders, err := services.FolderServiceInstance.GetSubFolders(folderID)
+	if err != nil {
+		return 0, err
+	}
+
+	files, err := services.FolderServiceInstance.GetFolderFiles(folderID)
+	if err != nil {
+		return 0, err
+	}
+
+	count := int64(0)
+
+	// Count accessible files
+	for _, file := range files {
+		if canAccess, _ := helpers.CanUserAccess(userID, "file", file.ID.Hex(), helpers.AccessLevelRead); canAccess {
+			count++
+		}
+	}
+
+	// Count accessible subfolders and their contents recursively
+	for _, subFolder := range subFolders {
+		if canAccess, _ := helpers.CanUserAccess(userID, "folder", subFolder.ID.Hex(), helpers.AccessLevelRead); canAccess {
+			count++ // Count the folder itself
+			subCount, err := getRecursiveItemCount(userID, subFolder.ID.Hex())
+			if err == nil {
+				count += subCount // Add its contents
+			}
+		}
+	}
+
+	return count, nil
 }
 
 func GetSharedWithMe() fiber.Handler {
@@ -178,32 +206,18 @@ func GetSharedWithMe() fiber.Handler {
 				var folder models.Folder
 				if err := folderCursor.Decode(&folder); err == nil {
 					// Get owner info
-					var owner models.User
-					database.UserCollection.FindOne(context.Background(), bson.M{
-						"_id": folder.UserID,
-					}).Decode(&owner)
-
-					// Calculate item count for the shared folder (only accessible items)
-					// Since we're already filtering accessible items, we can calculate based on that
-					subFolders, _ := services.FolderServiceInstance.GetSubFolders(folder.ID.Hex())
-					files, _ := services.FolderServiceInstance.GetFolderFiles(folder.ID.Hex())
-
-					// Count only accessible items
-					accessibleSubCount := 0
-					for _, subFolder := range subFolders {
-						if canAccess, _ := helpers.CanUserAccess(userID, "folder", subFolder.ID.Hex(), helpers.AccessLevelRead); canAccess {
-							accessibleSubCount++
-						}
+					owner, err := services.UserServiceInstance.GetUserByID(folder.UserID)
+					if err != nil {
+						log.Printf("Error getting owner: %v", err)
+						owner = &models.User{}
 					}
 
-					accessibleFileCount := 0
-					for _, file := range files {
-						if canAccess, _ := helpers.CanUserAccess(userID, "file", file.ID.Hex(), helpers.AccessLevelRead); canAccess {
-							accessibleFileCount++
-						}
+					// Calculate recursive item count for the shared folder
+					count, err := getRecursiveItemCount(userID, folder.ID.Hex())
+					if err != nil {
+						log.Printf("Recursive item count hesaplama hatası: %v", err)
+						count = 0
 					}
-
-					var count int64 = int64(accessibleSubCount + accessibleFileCount)
 
 					sharedItems = append(sharedItems, fiber.Map{
 						"resource": models.FolderResponse{
@@ -214,7 +228,7 @@ func GetSharedWithMe() fiber.Handler {
 							CreatedAt: folder.CreatedAt,
 							UpdatedAt: folder.UpdatedAt,
 						},
-						"access_type":   getAccessTypeFromList(folder.AccessList, userID),
+						"access_type":   services.AccessControlServiceInstance.GetAccessTypeFromList(folder.AccessList, userID),
 						"resource_type": "folder",
 						"owner": models.UserResponse{
 							ID:     owner.ID.Hex(),
@@ -453,7 +467,6 @@ func UpdateAccessPermission() fiber.Handler {
 		var accessEntry models.AccessEntry
 
 		// First try to update existing access entry for this user
-		fmt.Printf("DEBUG: Attempting to update existing access entry for user %s\n", req.UserID)
 
 		// Try to update existing entry first
 		fileUpdateResult, err := database.FileCollection.UpdateOne(
@@ -474,9 +487,7 @@ func UpdateAccessPermission() fiber.Handler {
 		)
 
 		if err != nil {
-			fmt.Printf("DEBUG: File update error: %v\n", err)
-		} else {
-			fmt.Printf("DEBUG: File update result - Matched: %d, Modified: %d\n", fileUpdateResult.MatchedCount, fileUpdateResult.ModifiedCount)
+			// File update error - continue to folder update
 		}
 
 		// If no existing entry was updated, add new one
@@ -501,7 +512,6 @@ func UpdateAccessPermission() fiber.Handler {
 				},
 			)
 
-			fmt.Printf("DEBUG: Adding new access entry for user %s\n", req.UserID)
 			fileUpdateResult, err = database.FileCollection.UpdateOne(
 				context.Background(),
 				bson.M{
@@ -515,15 +525,12 @@ func UpdateAccessPermission() fiber.Handler {
 			)
 
 			if err != nil {
-				fmt.Printf("DEBUG: File push error: %v\n", err)
-			} else {
-				fmt.Printf("DEBUG: File push result - Matched: %d, Modified: %d\n", fileUpdateResult.MatchedCount, fileUpdateResult.ModifiedCount)
+				// File push error - continue to folder update
 			}
 		}
 
 		// If file update didn't work, try folder
 		if fileUpdateResult == nil || fileUpdateResult.MatchedCount == 0 {
-			fmt.Printf("DEBUG: File update didn't work, trying folder\n")
 
 			// Try to update existing folder entry first
 			folderUpdateResult, err := database.FolderCollection.UpdateOne(
@@ -544,9 +551,7 @@ func UpdateAccessPermission() fiber.Handler {
 			)
 
 			if err != nil {
-				fmt.Printf("DEBUG: Folder update error: %v\n", err)
-			} else {
-				fmt.Printf("DEBUG: Folder update result - Matched: %d, Modified: %d\n", folderUpdateResult.MatchedCount, folderUpdateResult.ModifiedCount)
+				// Folder update error - continue
 			}
 
 			// If no existing folder entry was updated, add new one
@@ -564,7 +569,6 @@ func UpdateAccessPermission() fiber.Handler {
 					},
 				)
 
-				fmt.Printf("DEBUG: Adding new folder access entry for user %s\n", req.UserID)
 				updateResult, err = database.FolderCollection.UpdateOne(
 					context.Background(),
 					bson.M{
@@ -578,9 +582,7 @@ func UpdateAccessPermission() fiber.Handler {
 				)
 
 				if err != nil {
-					fmt.Printf("DEBUG: Folder push error: %v\n", err)
-				} else {
-					fmt.Printf("DEBUG: Folder push result - Matched: %d, Modified: %d\n", updateResult.MatchedCount, updateResult.ModifiedCount)
+					// Folder push error - continue
 				}
 			} else {
 				updateResult = folderUpdateResult
@@ -603,7 +605,6 @@ func UpdateAccessPermission() fiber.Handler {
 			// Yeni erişim ekleme veya güncelleme - tüm alt öğeleri de güncelle
 			err = helpers.PropagateAccessToChildren(resourceOID, req.UserID, req.Permission, userID)
 			if err != nil {
-				fmt.Printf("DEBUG: Propagation error: %v\n", err)
 				// Propagation başarısız olsa da ana işlem başarılı, devam et
 			}
 		}
@@ -616,30 +617,23 @@ func UpdateAccessPermission() fiber.Handler {
 
 func RemoveUserAccess() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		fmt.Printf("DEBUG: RemoveUserAccess called\n")
-
 		userID, err := helpers.GetCurrentUserID(c)
 		if err != nil {
-			fmt.Printf("DEBUG: Failed to get current user ID: %v\n", err)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
-		fmt.Printf("DEBUG: Current user ID: %s\n", userID)
 
 		// Get userId from URL parameter instead of request body
 		userIDToRemove := c.Params("userId")
-		fmt.Printf("DEBUG: Removing user ID: %s\n", userIDToRemove)
 
 		resourceID := c.Params("resourceId")
 		resourceOID, err := primitive.ObjectIDFromHex(resourceID)
 		if err != nil {
-			fmt.Printf("DEBUG: Failed to parse resource ID: %v\n", err)
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "Invalid resource ID",
 			})
 		}
-		fmt.Printf("DEBUG: Resource ID: %s\n", resourceID)
 
 		// Check if user can share this resource (requires write access or owner)
 		canShare, err := helpers.CanUserShare(userID, "file", resourceID)
@@ -655,7 +649,6 @@ func RemoveUserAccess() fiber.Handler {
 		}
 
 		// Remove user from file's access_list
-		fmt.Printf("DEBUG: Attempting to remove user from file access_list\n")
 		updateResult, err := database.FileCollection.UpdateOne(
 			context.Background(),
 			bson.M{
@@ -672,14 +665,11 @@ func RemoveUserAccess() fiber.Handler {
 		)
 
 		if err != nil {
-			fmt.Printf("DEBUG: File removal error: %v\n", err)
-		} else {
-			fmt.Printf("DEBUG: File removal result - Matched: %d, Modified: %d\n", updateResult.MatchedCount, updateResult.ModifiedCount)
+			// File removal error - continue to folder removal
 		}
 
 		if updateResult.MatchedCount == 0 {
 			// Try removing from folder's access_list
-			fmt.Printf("DEBUG: File removal didn't work, trying folder\n")
 			updateResult, err = database.FolderCollection.UpdateOne(
 				context.Background(),
 				bson.M{
@@ -696,9 +686,7 @@ func RemoveUserAccess() fiber.Handler {
 			)
 
 			if err != nil {
-				fmt.Printf("DEBUG: Folder removal error: %v\n", err)
-			} else {
-				fmt.Printf("DEBUG: Folder removal result - Matched: %d, Modified: %d\n", updateResult.MatchedCount, updateResult.ModifiedCount)
+				// Folder removal error - continue
 			}
 		}
 
@@ -711,7 +699,6 @@ func RemoveUserAccess() fiber.Handler {
 		// Hiyerarşik propagation - tüm alt öğelerden de kullanıcıyı çıkar
 		err = helpers.RemoveAccessFromChildren(resourceOID, userIDToRemove)
 		if err != nil {
-			fmt.Printf("DEBUG: Remove propagation error: %v\n", err)
 			// Propagation başarısız olsa da ana işlem başarılı, devam et
 		}
 

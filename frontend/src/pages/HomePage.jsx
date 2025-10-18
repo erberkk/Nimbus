@@ -79,7 +79,6 @@ const HomePage = () => {
         open={fileUploadOpen}
         onClose={() => setFileUploadOpen(false)}
         onUploadSuccess={() => {
-          console.log('File uploaded successfully');
           setFileUploadOpen(false);
         }}
       />

@@ -76,7 +76,6 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
       setUploading(true);
 
       // Step 1: Get presigned URL
-      console.log('Uploading file:', file.name, 'Type:', file.type);
       const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type);
       const { presigned_url, minio_path } = presignedResponse;
 

@@ -1,291 +1,82 @@
-import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  Breadcrumbs,
-  Link,
-  CircularProgress,
-  Alert,
-  IconButton,
-  Menu,
-  MenuItem,
-  Toolbar,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Checkbox,
-  Grid,
-  ListItemIcon,
-  ListItemText,
-} from '@mui/material';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
-import HomeIcon from '@mui/icons-material/Home';
-import NavigateNextIcon from '@mui/icons-material/NavigateNext';
-import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import ViewListIcon from '@mui/icons-material/ViewList';
-import ViewModuleIcon from '@mui/icons-material/ViewModule';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import FolderIcon from '@mui/icons-material/Folder';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import DownloadIcon from '@mui/icons-material/Download';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import FolderCard from './FolderCard';
-import FileCard from './FileCard';
-import CreateFolderDialog from './CreateFolderDialog';
-import FileUpload from './FileUpload';
-import ShareDialog from './ShareDialog';
-import { folderApi, fileApi, shareApi } from '../services/api';
+import { useEffect, forwardRef, useImperativeHandle } from 'react';
+import { Box } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-
-const MotionBox = motion.create(Box);
+import { useNavigation } from '../hooks/useNavigation';
+import { useFileExplorer } from '../hooks/useFileExplorer';
+import { useDialogs } from '../hooks/useDialogs';
+import { useUIState } from '../hooks/useUIState';
+import FileExplorerHeader from './FileExplorerHeader';
+import FileExplorerContent from './FileExplorerContent';
+import FileExplorerContextMenu from './FileExplorerContextMenu';
+import FileExplorerDialogs from './FileExplorerDialogs';
 
 const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
-  useImperativeHandle(ref, () => ({
-    handleCreateFolder
-  }));
-  const { t } = useTranslation();
   const { user } = useAuth();
-  // Navigation state - ayrı tutmak için her sayfa için ayrı state
-  const [navigationState, setNavigationState] = useState({
-    shared: { currentFolder: null, folderPath: [] },
-    home: { currentFolder: null, folderPath: [] }
-  });
+  
+  // Custom hooks
+  const navigation = useNavigation(selectedMenu);
+  const fileExplorer = useFileExplorer(selectedMenu, navigation.getCurrentNavState);
+  const dialogs = useDialogs();
+  const uiState = useUIState();
 
-  // Helper functions to get current navigation state
-  const getCurrentNavState = () => navigationState[selectedMenu] || navigationState.home;
-  const updateNavState = (updates) => {
-    setNavigationState(prev => ({
-      ...prev,
-      [selectedMenu]: { ...prev[selectedMenu], ...updates }
-    }));
-  };
-
-  const [folders, setFolders] = useState([]);
-  const [files, setFiles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [fileUploadOpen, setFileUploadOpen] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [menuAnchor, setMenuAnchor] = useState(null);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [shareResource, setShareResource] = useState(null);
-  const [shareResourceType, setShareResourceType] = useState(null);
-
-  const loadContents = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      const currentNav = getCurrentNavState();
-      const { currentFolder } = currentNav;
-
-      if (selectedMenu === 'shared') {
-        // For shared resources, check if we're navigating into a shared folder
-        if (currentFolder && currentFolder.isShared) {
-          // Get contents of shared folder
-          const response = await shareApi.getSharedFolderContents(currentFolder.id);
-          if (!response) {
-            setFolders([]);
-            setFiles([]);
-            return;
-          }
-
-          // Response has structure: { folders: [...], files: [...] }
-          const folders = response.folders || [];
-          const files = response.files || [];
-
-          setFolders(folders.map(item => ({
-            ...item.resource,
-            item_count: item.resource.item_count || 0,
-            access_type: item.access_type,
-            owner: item.owner,
-            isShared: true
-          })));
-          setFiles(files.map(item => ({
-            ...item.resource,
-            access_type: item.access_type,
-            owner: item.owner,
-            isShared: true
-          })));
-        } else {
-          // Load shared files and folders at root level
-          const response = await shareApi.getSharedWithMe();
-          if (!response) {
-            setFolders([]);
-            setFiles([]);
-            return;
-          }
-
-          const sharedFiles = response.filter(item => item.resource_type === 'file');
-          const sharedFolders = response.filter(item => item.resource_type === 'folder');
-
-          const foldersWithCount = sharedFolders.map(item => ({
-            ...item.resource,
-            item_count: item.resource.item_count || 0,
-            access_type: item.access_type,
-            owner: item.owner,
-            isShared: true
-          }));
-
-          setFolders(foldersWithCount);
-          setFiles(sharedFiles.map(item => ({
-            ...item.resource,
-            access_type: item.access_type,
-            owner: item.owner,
-            isShared: true
-          })));
-        }
-      } else {
-        // Load normal files and folders
-        if (currentFolder) {
-          const response = await folderApi.getFolderContents(currentFolder.id);
-          setFolders(response.folders || []);
-          setFiles(response.files || []);
-        } else {
-          const response = await folderApi.getRootContents();
-          setFolders(response.folders || []);
-          setFiles(response.files || []);
-        }
-      }
-    } catch (err) {
-      console.error('İçerik yükleme hatası:', err);
-      setError(t('files_error'));
-      window.toast?.error(t('files_error'));
-    } finally {
-      setLoading(false);
-    }
-  }, [navigationState, selectedMenu, t]);
+  useImperativeHandle(ref, () => ({
+    handleCreateFolder: fileExplorer.createFolder
+  }));
 
   useEffect(() => {
-    loadContents();
-  }, [loadContents, refreshTrigger]);
+    fileExplorer.loadContents();
+  }, [fileExplorer.loadContents, uiState.refreshTrigger]);
 
   const handleFolderOpen = folder => {
-    const currentNav = getCurrentNavState();
-    const { folderPath } = currentNav;
-
     // For shared folders, mark them as shared for proper navigation
     const updatedFolder = folder.isShared ? { ...folder, isShared: true } : folder;
-
-    updateNavState({
-      currentFolder: updatedFolder,
-      folderPath: [...folderPath, folder] // Path'e yeni klasörü ekle
-    });
+    navigation.handleFolderOpen(updatedFolder);
   };
 
   const handleBackToRoot = () => {
-    updateNavState({
-      currentFolder: null,
-      folderPath: [] // Path'i temizle
-    });
+    navigation.handleBackToRoot();
   };
 
   const handleBreadcrumbClick = (index) => {
-    const currentNav = getCurrentNavState();
-    const { folderPath } = currentNav;
-
-    if (index === -1) {
-      // Root'a git
-      handleBackToRoot();
-    } else {
-      // Belirli bir seviyeye git
-      const targetFolder = folderPath[index];
-      updateNavState({
-        currentFolder: targetFolder,
-        folderPath: folderPath.slice(0, index + 1) // O seviyeye kadar olan path'i al
-      });
-    }
+    navigation.handleBreadcrumbClick(index);
   };
 
   const handleCreateFolder = async folderData => {
-    try {
-      const currentNav = getCurrentNavState();
-      const { currentFolder } = currentNav;
-
-      // Add current folder info to folder data
-      const folderWithParent = {
-        ...folderData,
-        folder_id: currentFolder?.id || null
-      };
-
-      await folderApi.createFolder(folderWithParent);
-      window.toast?.success('Klasör başarıyla oluşturuldu');
-      setRefreshTrigger(prev => prev + 1);
-    } catch (err) {
-      console.error('Klasör oluşturma hatası:', err);
-      window.toast?.error(err.response?.data?.error || 'Klasör oluşturulamadı');
-    }
+    await fileExplorer.createFolder(folderData);
   };
 
   const handleDeleteFolder = async folder => {
     if (!window.confirm(`"${folder.name}" klasörünü silmek istediğinizden emin misiniz?`)) {
       return;
     }
-
-    try {
-      await folderApi.deleteFolder(folder.id);
-      window.toast?.success('Klasör başarıyla silindi');
-      setRefreshTrigger(prev => prev + 1);
-    } catch (err) {
-      console.error('Klasör silme hatası:', err);
-      window.toast?.error(err.response?.data?.error || 'Klasör silinemedi');
-    }
+    await fileExplorer.deleteFolder(folder.id);
   };
 
   const handleDownloadFile = async file => {
-    try {
-      const response = await fileApi.getDownloadPresignedURL(file.filename);
-      window.open(response.presigned_url, '_blank');
-    } catch (err) {
-      console.error('İndirme hatası:', err);
-      window.toast?.error(t('network_error'));
-    }
+    await fileExplorer.downloadFile(file);
   };
 
   const handleDeleteFile = async file => {
-    if (!window.confirm(t('confirm_delete'))) {
+    if (!window.confirm('Bu dosyayı silmek istediğinizden emin misiniz?')) {
       return;
     }
-
-    try {
-      await fileApi.deleteFile(file.id);
-      window.toast?.success(t('delete_success'));
-      setRefreshTrigger(prev => prev + 1);
-    } catch (err) {
-      console.error('Silme hatası:', err);
-      window.toast?.error(t('delete_error'));
-    }
+    await fileExplorer.deleteFile(file.id);
   };
 
   const handleUploadSuccess = () => {
-    setRefreshTrigger(prev => prev + 1);
+    uiState.triggerRefresh();
   };
 
   const handleMenuOpen = (event, item) => {
-    setMenuAnchor(event.currentTarget);
-    setSelectedItem(item);
+    uiState.openContextMenu(event, item);
   };
 
   const handleMenuClose = () => {
-    setMenuAnchor(null);
-    setSelectedItem(null);
+    uiState.closeContextMenu();
   };
 
   const handleShare = (resource, type) => {
-    setShareResource(resource);
-    setShareResourceType(type);
-    setShareDialogOpen(true);
+    dialogs.openShareDialog(resource, type);
   };
 
   const formatFileSize = bytes => {
@@ -308,474 +99,51 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
     return date.toLocaleDateString('tr-TR');
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-        <CircularProgress size={60} />
-      </Box>
-    );
-  }
-
   return (
     <Box sx={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Toolbar */}
-      <Toolbar
-        sx={{
-          px: 0,
-          py: 1.5,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderBottom: 1,
-          borderColor: 'divider',
-          mb: 1,
-        }}
-      >
-        {/* Breadcrumb */}
-        <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />}>
-          {selectedMenu === 'shared' ? [
-            <Link
-              key="shared"
-              component="button"
-              variant="body1"
-              onClick={() => handleBreadcrumbClick(-1)}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5,
-                color: 'text.primary',
-                textDecoration: 'none',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                '&:hover': {
-                  color: 'primary.main',
-                },
-              }}
-            >
-              <HomeIcon fontSize="small" />
-              Paylaşılanlarım
-            </Link>,
-            // Shared folder path için breadcrumb oluştur
-            ...(getCurrentNavState().folderPath.map((folder, index) => (
-              <Link
-                key={`shared-folder-${index}`}
-                component="button"
-                variant="body1"
-                onClick={() => handleBreadcrumbClick(index)}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  color: index === getCurrentNavState().folderPath.length - 1 ? 'text.primary' : 'text.secondary',
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.95rem',
-                  '&:hover': {
-                    color: 'primary.main',
-                  },
-                }}
-              >
-                {folder.name}
-              </Link>
-            )))
-          ] : [
-            <Link
-              key="home"
-              component="button"
-              variant="body1"
-              onClick={() => handleBreadcrumbClick(-1)}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5,
-                color: getCurrentNavState().currentFolder ? 'text.secondary' : 'text.primary',
-                textDecoration: 'none',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                '&:hover': {
-                  color: 'primary.main',
-                },
-              }}
-            >
-              <HomeIcon fontSize="small" />
-              My Drive
-            </Link>,
-            // Path'deki her klasör için breadcrumb oluştur
-            ...(getCurrentNavState().folderPath.map((folder, index) => (
-              <Link
-                key={`folder-${index}`}
-                component="button"
-                variant="body1"
-                onClick={() => handleBreadcrumbClick(index)}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  color: index === getCurrentNavState().folderPath.length - 1 ? 'text.primary' : 'text.secondary',
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.95rem',
-                  '&:hover': {
-                    color: 'primary.main',
-                  },
-                }}
-              >
-                {folder.name}
-              </Link>
-            ))
-          )]}
-        </Breadcrumbs>
-
-        {/* View Mode Toggle */}
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <IconButton
-            size="small"
-            onClick={() => setViewMode('list')}
-            sx={{
-              bgcolor: viewMode === 'list' ? 'action.selected' : 'transparent',
-            }}
-          >
-            <ViewListIcon />
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={() => setViewMode('grid')}
-            sx={{
-              bgcolor: viewMode === 'grid' ? 'action.selected' : 'transparent',
-            }}
-          >
-            <ViewModuleIcon />
-          </IconButton>
-          <IconButton size="small">
-            <InfoOutlinedIcon />
-          </IconButton>
-        </Box>
-      </Toolbar>
-
-
-      {/* Error Alert */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Empty State - Always show when no content */}
-      {!loading && folders.length === 0 && files.length === 0 && (
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 400,
-          mt: 4
-        }}>
-          <MotionBox
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            sx={{
-              textAlign: 'center',
-              py: 4,
-            }}
-          >
-          <CreateNewFolderIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 1.5 }} />
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            {getCurrentNavState().currentFolder ? 'Bu klasör boş' : 'Henüz klasör veya dosya yok'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {getCurrentNavState().currentFolder
-              ? 'Dosya yükleyerek başlayın'
-              : 'Yeni klasör oluşturun veya dosya yükleyin'}
-          </Typography>
-
-          {/* Show buttons in both root and folder views */}
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-            <Button
-              variant="contained"
-              startIcon={<CreateNewFolderIcon />}
-              onClick={() => setCreateFolderOpen(true)}
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-              }}
-            >
-              Yeni Klasör Oluştur
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<CloudUploadIcon />}
-              onClick={() => setFileUploadOpen(true)}
-              sx={{
-                borderColor: '#667eea',
-                color: '#667eea',
-                '&:hover': {
-                  borderColor: '#764ba2',
-                  backgroundColor: 'rgba(102, 126, 234, 0.04)',
-                }
-              }}
-            >
-              Dosya Yükle
-            </Button>
-          </Box>
-          </MotionBox>
-        </Box>
-      )}
-
-      {/* Grid View - Only show when there's content */}
-      {!loading && (folders.length > 0 || files.length > 0) && viewMode === 'grid' && (
-        <Box sx={{ flex: 1, overflow: 'hidden' }}>
-          {/* Folders Section */}
-          {folders.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography
-                variant="subtitle2"
-                color="text.secondary"
-                sx={{ mb: 1.5, fontWeight: 500 }}
-              >
-                Klasörler
-              </Typography>
-              <Grid container spacing={2}>
-                <AnimatePresence>
-                  {folders.map((folder, index) => (
-                    <Grid item xs={12} sm={6} md={4} lg={3} key={folder.id}>
-                      <MotionBox
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.3, delay: index * 0.05 }}
-                      >
-                        <FolderCard
-                          folder={folder}
-                          onOpen={handleFolderOpen}
-                          onDelete={handleDeleteFolder}
-                          onShare={folder => handleShare(folder, 'folder')}
-                        />
-                      </MotionBox>
-                    </Grid>
-                  ))}
-                </AnimatePresence>
-              </Grid>
-            </Box>
-          )}
-
-          {/* Files Section */}
-          {files.length > 0 && (
-            <Box>
-              <Typography
-                variant="subtitle2"
-                color="text.secondary"
-                sx={{ mb: 1.5, fontWeight: 500 }}
-              >
-                Dosyalar
-              </Typography>
-              <Grid container spacing={2}>
-                <AnimatePresence>
-                  {files.map((file, index) => (
-                    <Grid item xs={12} sm={6} md={4} lg={3} key={file.id}>
-                      <MotionBox
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.3, delay: index * 0.05 }}
-                      >
-                        <FileCard
-                          file={file}
-                          onDownload={handleDownloadFile}
-                          onDelete={handleDeleteFile}
-                          onShare={file => handleShare(file, 'file')}
-                        />
-                      </MotionBox>
-                    </Grid>
-                  ))}
-                </AnimatePresence>
-              </Grid>
-            </Box>
-          )}
-        </Box>
-      )}
-
-      {/* List View - Only show when there's content */}
-      {!loading && (folders.length > 0 || files.length > 0) && viewMode === 'list' && (
-        <Box sx={{ flex: 1, overflow: 'hidden' }}>
-          <TableContainer sx={{ height: '100%' }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell padding="checkbox">
-                  <Checkbox />
-                </TableCell>
-                <TableCell>Ad</TableCell>
-                <TableCell>Sahip</TableCell>
-                <TableCell>Son Değiştirilme</TableCell>
-                <TableCell>Dosya Boyutu</TableCell>
-                <TableCell></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {/* Folders */}
-              {folders.map(folder => (
-                <TableRow
-                  key={folder.id}
-                  hover
-                  sx={{ cursor: 'pointer' }}
-                  onClick={() => handleFolderOpen(folder)}
-                >
-                  <TableCell padding="checkbox">
-                    <Checkbox />
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      <FolderIcon sx={{ color: 'primary.main' }} />
-                      <Typography variant="body2">{folder.name}</Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      Ben
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatDate(folder.created_at)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      —
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <IconButton
-                      size="small"
-                      onClick={e => {
-                        e.stopPropagation();
-                        handleMenuOpen(e, { ...folder, type: 'folder' });
-                      }}
-                    >
-                      <MoreVertIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-
-              {/* Files */}
-              {files.map(file => (
-                <TableRow key={file.id} hover>
-                  <TableCell padding="checkbox">
-                    <Checkbox />
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      <InsertDriveFileIcon sx={{ color: 'text.secondary' }} />
-                      <Typography variant="body2">{file.filename}</Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      Ben
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatDate(file.created_at)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatFileSize(file.size)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <IconButton
-                      size="small"
-                      onClick={e => handleMenuOpen(e, { ...file, type: 'file' })}
-                    >
-                      <MoreVertIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          </TableContainer>
-        </Box>
-      )}
-
-      {/* Context Menu */}
-      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
-        {selectedItem?.type === 'file' ? (
-          [
-            <MenuItem
-              key="download"
-              onClick={() => {
-                handleDownloadFile(selectedItem);
-                handleMenuClose();
-              }}
-            >
-              <ListItemIcon>
-                <DownloadIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>İndir</ListItemText>
-            </MenuItem>,
-            <MenuItem
-              key="delete"
-              onClick={() => {
-                handleDeleteFile(selectedItem);
-                handleMenuClose();
-              }}
-            >
-              <ListItemIcon>
-                <DeleteIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>Sil</ListItemText>
-            </MenuItem>,
-          ]
-        ) : (
-          <MenuItem
-            onClick={() => {
-              handleDeleteFolder(selectedItem);
-              handleMenuClose();
-            }}
-          >
-            <ListItemIcon>
-              <DeleteIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Sil</ListItemText>
-          </MenuItem>
-        )}
-      </Menu>
-
-
-      {/* Create Folder Dialog */}
-      <CreateFolderDialog
-        open={createFolderOpen}
-        onClose={() => setCreateFolderOpen(false)}
-        onSubmit={handleCreateFolder}
+      <FileExplorerHeader
+        selectedMenu={selectedMenu}
+        navigation={navigation}
+        uiState={uiState}
+        fileExplorer={fileExplorer}
+        onBreadcrumbClick={handleBreadcrumbClick}
+        onCreateFolder={dialogs.openCreateFolder}
+        onFileUpload={dialogs.openFileUpload}
+        onViewModeChange={uiState.setViewMode}
       />
 
-      {/* File Upload Dialog */}
-      <FileUpload
-        open={fileUploadOpen}
-        onClose={() => setFileUploadOpen(false)}
-        onUploadSuccess={() => {
-          setFileUploadOpen(false);
-          setRefreshTrigger(prev => prev + 1);
-        }}
-        userId={user?.id}
-        currentFolderId={getCurrentNavState().currentFolder?.id}
+      <FileExplorerContent
+        fileExplorer={fileExplorer}
+        uiState={uiState}
+        navigation={navigation}
+        onCreateFolder={dialogs.openCreateFolder}
+        onFileUpload={dialogs.openFileUpload}
+        onFolderOpen={handleFolderOpen}
+        onFileDownload={handleDownloadFile}
+        onFolderDelete={handleDeleteFolder}
+        onFileDelete={handleDeleteFile}
+        onShare={handleShare}
+        onMenuOpen={handleMenuOpen}
+        formatFileSize={formatFileSize}
+        formatDate={formatDate}
       />
 
-      {/* Share Dialog */}
-      <ShareDialog
-        open={shareDialogOpen}
-        onClose={() => {
-          setShareDialogOpen(false);
-          setShareResource(null);
-          setShareResourceType(null);
-        }}
-        resource={shareResource}
-        resourceType={shareResourceType}
+      <FileExplorerContextMenu
+        menuAnchor={uiState.menuAnchor}
+        selectedItem={uiState.selectedItem}
+        onClose={handleMenuClose}
+        onDownloadFile={handleDownloadFile}
+        onDeleteFile={handleDeleteFile}
+        onDeleteFolder={handleDeleteFolder}
       />
 
+      <FileExplorerDialogs
+        dialogs={dialogs}
+        uiState={uiState}
+        navigation={navigation}
+        user={user}
+        onCreateFolder={handleCreateFolder}
+      />
     </Box>
   );
 });

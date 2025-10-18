@@ -23,16 +23,16 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	// Legacy route for backward compatibility (without /api/v1 prefix)
 	app.Get("/auth/google/callback", handlers.GoogleCallback(cfg))
 
-	// Protected routes (JWT middleware eklenecek)
+	// Protected routes
 	protected := api.Group("/user")
-	protected.Use(middleware.JWTAuth(cfg.JWTSecret))
+	protected.Use(middleware.RequireAuth(cfg.JWTSecret))
 	{
 		protected.Get("/profile", handlers.GetProfile())
 	}
 
 	// File routes (protected)
 	files := api.Group("/files")
-	files.Use(middleware.JWTAuth(cfg.JWTSecret))
+	files.Use(middleware.RequireAuth(cfg.JWTSecret))
 	{
 		files.Get("/upload-url", handlers.GetUploadPresignedURL(cfg))
 		files.Post("/", handlers.CreateFile(cfg))
@@ -44,7 +44,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 
 	// Folder routes (protected)
 	folders := api.Group("/folders")
-	folders.Use(middleware.JWTAuth(cfg.JWTSecret))
+	folders.Use(middleware.RequireAuth(cfg.JWTSecret))
 	{
 		folders.Post("/", handlers.CreateFolder(cfg))
 		folders.Get("/", handlers.GetUserFolders(cfg))
@@ -57,7 +57,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 
 	// Share routes (access list management)
 	shares := api.Group("/shares")
-	shares.Use(middleware.JWTAuth(cfg.JWTSecret))
+	shares.Use(middleware.RequireAuth(cfg.JWTSecret))
 	{
 		shares.Get("/resource/:resourceId", handlers.GetResourceShares())
 		shares.Get("/shared-with-me", handlers.GetSharedWithMe())
@@ -70,7 +70,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 
 	// User search (protected)
 	users := api.Group("/users")
-	users.Use(middleware.JWTAuth(cfg.JWTSecret))
+	users.Use(middleware.RequireAuth(cfg.JWTSecret))
 	{
 		users.Get("/search", handlers.SearchUsers())
 	}
