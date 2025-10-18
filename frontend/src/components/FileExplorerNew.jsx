@@ -53,8 +53,21 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
   }));
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [currentFolder, setCurrentFolder] = useState(null);
-  const [folderPath, setFolderPath] = useState([]); // Breadcrumb path için
+  // Navigation state - ayrı tutmak için her sayfa için ayrı state
+  const [navigationState, setNavigationState] = useState({
+    shared: { currentFolder: null, folderPath: [] },
+    home: { currentFolder: null, folderPath: [] }
+  });
+
+  // Helper functions to get current navigation state
+  const getCurrentNavState = () => navigationState[selectedMenu] || navigationState.home;
+  const updateNavState = (updates) => {
+    setNavigationState(prev => ({
+      ...prev,
+      [selectedMenu]: { ...prev[selectedMenu], ...updates }
+    }));
+  };
+
   const [folders, setFolders] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,24 +87,65 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
       setLoading(true);
       setError('');
 
+      const currentNav = getCurrentNavState();
+      const { currentFolder } = currentNav;
+
       if (selectedMenu === 'shared') {
-        // Load shared files and folders
-        const response = await shareApi.getSharedWithMe();
-        const sharedFiles = response.filter(item => item.resource_type === 'file');
-        const sharedFolders = response.filter(item => item.resource_type === 'folder');
-        
-        setFolders(sharedFolders.map(item => ({
-          ...item.resource,
-          access_type: item.access_type,
-          owner: item.owner,
-          isShared: true
-        })));
-        setFiles(sharedFiles.map(item => ({
-          ...item.resource,
-          access_type: item.access_type,
-          owner: item.owner,
-          isShared: true
-        })));
+        // For shared resources, check if we're navigating into a shared folder
+        if (currentFolder && currentFolder.isShared) {
+          // Get contents of shared folder
+          const response = await shareApi.getSharedFolderContents(currentFolder.id);
+          if (!response) {
+            setFolders([]);
+            setFiles([]);
+            return;
+          }
+
+          // Response has structure: { folders: [...], files: [...] }
+          const folders = response.folders || [];
+          const files = response.files || [];
+
+          setFolders(folders.map(item => ({
+            ...item.resource,
+            item_count: item.resource.item_count || 0,
+            access_type: item.access_type,
+            owner: item.owner,
+            isShared: true
+          })));
+          setFiles(files.map(item => ({
+            ...item.resource,
+            access_type: item.access_type,
+            owner: item.owner,
+            isShared: true
+          })));
+        } else {
+          // Load shared files and folders at root level
+          const response = await shareApi.getSharedWithMe();
+          if (!response) {
+            setFolders([]);
+            setFiles([]);
+            return;
+          }
+
+          const sharedFiles = response.filter(item => item.resource_type === 'file');
+          const sharedFolders = response.filter(item => item.resource_type === 'folder');
+
+          const foldersWithCount = sharedFolders.map(item => ({
+            ...item.resource,
+            item_count: item.resource.item_count || 0,
+            access_type: item.access_type,
+            owner: item.owner,
+            isShared: true
+          }));
+
+          setFolders(foldersWithCount);
+          setFiles(sharedFiles.map(item => ({
+            ...item.resource,
+            access_type: item.access_type,
+            owner: item.owner,
+            isShared: true
+          })));
+        }
       } else {
         // Load normal files and folders
         if (currentFolder) {
@@ -111,36 +165,54 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
     } finally {
       setLoading(false);
     }
-  }, [currentFolder, selectedMenu, t]);
+  }, [navigationState, selectedMenu, t]);
 
   useEffect(() => {
     loadContents();
   }, [loadContents, refreshTrigger]);
 
   const handleFolderOpen = folder => {
-    setCurrentFolder(folder);
-    setFolderPath(prev => [...prev, folder]); // Path'e yeni klasörü ekle
+    const currentNav = getCurrentNavState();
+    const { folderPath } = currentNav;
+
+    // For shared folders, mark them as shared for proper navigation
+    const updatedFolder = folder.isShared ? { ...folder, isShared: true } : folder;
+
+    updateNavState({
+      currentFolder: updatedFolder,
+      folderPath: [...folderPath, folder] // Path'e yeni klasörü ekle
+    });
   };
 
   const handleBackToRoot = () => {
-    setCurrentFolder(null);
-    setFolderPath([]); // Path'i temizle
+    updateNavState({
+      currentFolder: null,
+      folderPath: [] // Path'i temizle
+    });
   };
 
   const handleBreadcrumbClick = (index) => {
+    const currentNav = getCurrentNavState();
+    const { folderPath } = currentNav;
+
     if (index === -1) {
       // Root'a git
       handleBackToRoot();
     } else {
       // Belirli bir seviyeye git
       const targetFolder = folderPath[index];
-      setCurrentFolder(targetFolder);
-      setFolderPath(prev => prev.slice(0, index + 1)); // O seviyeye kadar olan path'i al
+      updateNavState({
+        currentFolder: targetFolder,
+        folderPath: folderPath.slice(0, index + 1) // O seviyeye kadar olan path'i al
+      });
     }
   };
 
   const handleCreateFolder = async folderData => {
     try {
+      const currentNav = getCurrentNavState();
+      const { currentFolder } = currentNav;
+
       // Add current folder info to folder data
       const folderWithParent = {
         ...folderData,
@@ -262,10 +334,50 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         {/* Breadcrumb */}
         <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />}>
           {selectedMenu === 'shared' ? [
-            <Typography key="shared" variant="body1" color="text.primary" sx={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Link
+              key="shared"
+              component="button"
+              variant="body1"
+              onClick={() => handleBreadcrumbClick(-1)}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                color: 'text.primary',
+                textDecoration: 'none',
+                cursor: 'pointer',
+                fontSize: '0.95rem',
+                '&:hover': {
+                  color: 'primary.main',
+                },
+              }}
+            >
               <HomeIcon fontSize="small" />
               Paylaşılanlarım
-            </Typography>
+            </Link>,
+            // Shared folder path için breadcrumb oluştur
+            ...(getCurrentNavState().folderPath.map((folder, index) => (
+              <Link
+                key={`shared-folder-${index}`}
+                component="button"
+                variant="body1"
+                onClick={() => handleBreadcrumbClick(index)}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  color: index === getCurrentNavState().folderPath.length - 1 ? 'text.primary' : 'text.secondary',
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  '&:hover': {
+                    color: 'primary.main',
+                  },
+                }}
+              >
+                {folder.name}
+              </Link>
+            )))
           ] : [
             <Link
               key="home"
@@ -276,7 +388,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 0.5,
-                color: currentFolder ? 'text.secondary' : 'text.primary',
+                color: getCurrentNavState().currentFolder ? 'text.secondary' : 'text.primary',
                 textDecoration: 'none',
                 cursor: 'pointer',
                 fontSize: '0.95rem',
@@ -289,7 +401,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
               My Drive
             </Link>,
             // Path'deki her klasör için breadcrumb oluştur
-            ...folderPath.map((folder, index) => (
+            ...(getCurrentNavState().folderPath.map((folder, index) => (
               <Link
                 key={`folder-${index}`}
                 component="button"
@@ -299,7 +411,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0.5,
-                  color: index === folderPath.length - 1 ? 'text.primary' : 'text.secondary',
+                  color: index === getCurrentNavState().folderPath.length - 1 ? 'text.primary' : 'text.secondary',
                   textDecoration: 'none',
                   cursor: 'pointer',
                   fontSize: '0.95rem',
@@ -311,7 +423,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
                 {folder.name}
               </Link>
             ))
-          ]}
+          )]}
         </Breadcrumbs>
 
         {/* View Mode Toggle */}
@@ -367,10 +479,10 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
           >
           <CreateNewFolderIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 1.5 }} />
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            {currentFolder ? 'Bu klasör boş' : 'Henüz klasör veya dosya yok'}
+            {getCurrentNavState().currentFolder ? 'Bu klasör boş' : 'Henüz klasör veya dosya yok'}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {currentFolder
+            {getCurrentNavState().currentFolder
               ? 'Dosya yükleyerek başlayın'
               : 'Yeni klasör oluşturun veya dosya yükleyin'}
           </Typography>
@@ -649,7 +761,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
           setRefreshTrigger(prev => prev + 1);
         }}
         userId={user?.id}
-        currentFolderId={currentFolder?.id}
+        currentFolderId={getCurrentNavState().currentFolder?.id}
       />
 
       {/* Share Dialog */}

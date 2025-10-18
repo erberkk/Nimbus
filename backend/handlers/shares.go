@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,6 +14,7 @@ import (
 	"nimbus-backend/database"
 	"nimbus-backend/helpers"
 	"nimbus-backend/models"
+	"nimbus-backend/services"
 )
 
 func GetResourceShares() fiber.Handler {
@@ -181,11 +183,34 @@ func GetSharedWithMe() fiber.Handler {
 						"_id": folder.UserID,
 					}).Decode(&owner)
 
+					// Calculate item count for the shared folder (only accessible items)
+					// Since we're already filtering accessible items, we can calculate based on that
+					subFolders, _ := services.FolderServiceInstance.GetSubFolders(folder.ID.Hex())
+					files, _ := services.FolderServiceInstance.GetFolderFiles(folder.ID.Hex())
+
+					// Count only accessible items
+					accessibleSubCount := 0
+					for _, subFolder := range subFolders {
+						if canAccess, _ := helpers.CanUserAccess(userID, "folder", subFolder.ID.Hex(), helpers.AccessLevelRead); canAccess {
+							accessibleSubCount++
+						}
+					}
+
+					accessibleFileCount := 0
+					for _, file := range files {
+						if canAccess, _ := helpers.CanUserAccess(userID, "file", file.ID.Hex(), helpers.AccessLevelRead); canAccess {
+							accessibleFileCount++
+						}
+					}
+
+					var count int64 = int64(accessibleSubCount + accessibleFileCount)
+
 					sharedItems = append(sharedItems, fiber.Map{
 						"resource": models.FolderResponse{
 							ID:        folder.ID.Hex(),
 							Name:      folder.Name,
 							Color:     folder.Color,
+							ItemCount: int(count),
 							CreatedAt: folder.CreatedAt,
 							UpdatedAt: folder.UpdatedAt,
 						},
@@ -203,6 +228,182 @@ func GetSharedWithMe() fiber.Handler {
 		}
 
 		return c.JSON(sharedItems)
+	}
+}
+
+// GetSharedFolderContents - Paylaşılan klasörün içeriğini getir (alt klasörler ve dosyalar)
+func GetSharedFolderContents() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		folderID := c.Params("folderId")
+		if folderID == "" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "folder ID parametresi gerekli",
+			})
+		}
+
+		// Klasör bilgisini getir ve erişim kontrolü yap
+		folder, err := services.FolderServiceInstance.GetFolderByID(folderID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Klasör bulunamadı",
+			})
+		}
+
+		// Kullanıcının bu klasöre erişimi var mı kontrol et (owner veya access list)
+		canAccess, err := helpers.CanUserAccess(userID, "folder", folderID, helpers.AccessLevelRead)
+		if err != nil || !canAccess {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Bu klasöre erişim yetkiniz yok",
+			})
+		}
+
+		// Klasördeki alt klasörleri getir
+		subFolders, err := services.FolderServiceInstance.GetSubFolders(folderID)
+		if err != nil {
+			log.Printf("Alt klasörleri alma hatası: %v", err)
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Alt klasörler listelenemedi",
+			})
+		}
+
+		// Sadece erişimi olan alt klasörleri filtrele ve erişim bilgilerini ekle
+		accessibleSubFolders := make([]fiber.Map, 0)
+		for _, subFolder := range subFolders {
+			canAccessSub, err := helpers.CanUserAccess(userID, "folder", subFolder.ID.Hex(), helpers.AccessLevelRead)
+			if err == nil && canAccessSub {
+				// Alt klasör için erişim bilgilerini al
+				accessType := getAccessTypeFromList(subFolder.AccessList, userID)
+
+				// Sahibi bilgilerini al
+				var owner models.User
+				database.UserCollection.FindOne(context.Background(), bson.M{
+					"_id": subFolder.UserID,
+				}).Decode(&owner)
+
+				// Calculate real count for this accessible subfolder
+				count, err := services.FolderServiceInstance.GetFolderItemCount(subFolder.ID.Hex())
+				if err != nil {
+					log.Printf("Subfolder item count hesaplama hatası: %v", err)
+					count = 0
+				}
+
+				accessibleSubFolders = append(accessibleSubFolders, fiber.Map{
+					"folder": models.FolderResponse{
+						ID:        subFolder.ID.Hex(),
+						Name:      subFolder.Name,
+						Color:     subFolder.Color,
+						ItemCount: int(count),
+						FolderID:  subFolder.FolderID,
+						CreatedAt: subFolder.CreatedAt,
+						UpdatedAt: subFolder.UpdatedAt,
+					},
+					"access_type": accessType,
+					"owner": models.UserResponse{
+						ID:     owner.ID.Hex(),
+						Email:  owner.Email,
+						Name:   owner.Name,
+						Avatar: owner.Avatar,
+					},
+					"is_shared": true,
+				})
+			}
+		}
+
+		// Klasördeki dosyaları getir
+		files, err := services.FolderServiceInstance.GetFolderFiles(folderID)
+		if err != nil {
+			log.Printf("Klasör dosyaları alma hatası: %v", err)
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Dosyalar listelenemedi",
+			})
+		}
+
+		// Sadece erişimi olan dosyaları filtrele ve erişim bilgilerini ekle
+		accessibleFiles := make([]fiber.Map, 0)
+		for _, file := range files {
+			canAccessFile, err := helpers.CanUserAccess(userID, "file", file.ID.Hex(), helpers.AccessLevelRead)
+			if err == nil && canAccessFile {
+				// Dosya için erişim bilgilerini al
+				accessType := getAccessTypeFromList(file.AccessList, userID)
+
+				// Sahibi bilgilerini al
+				var owner models.User
+				database.UserCollection.FindOne(context.Background(), bson.M{
+					"_id": file.UserID,
+				}).Decode(&owner)
+
+				accessibleFiles = append(accessibleFiles, fiber.Map{
+					"file": models.FileResponse{
+						ID:          file.ID.Hex(),
+						Filename:    file.Filename,
+						Size:        file.Size,
+						ContentType: file.ContentType,
+						CreatedAt:   file.CreatedAt,
+						UpdatedAt:   file.UpdatedAt,
+					},
+					"access_type": accessType,
+					"owner": models.UserResponse{
+						ID:     owner.ID.Hex(),
+						Email:  owner.Email,
+						Name:   owner.Name,
+						Avatar: owner.Avatar,
+					},
+					"is_shared": true,
+				})
+			}
+		}
+
+		// Klasör response'ları formatla
+		folderList := make([]fiber.Map, 0, len(accessibleSubFolders))
+		for _, subFolderData := range accessibleSubFolders {
+			subFolder := subFolderData["folder"].(models.FolderResponse)
+			// Calculate real count for nested shared folders too
+			count, err := services.FolderServiceInstance.GetFolderItemCount(subFolder.ID)
+			if err != nil {
+				log.Printf("Nested shared folder item count hesaplama hatası: %v", err)
+				count = 0
+			}
+			subFolder.ItemCount = int(count)
+			folderList = append(folderList, fiber.Map{
+				"resource":      subFolder,
+				"access_type":   subFolderData["access_type"],
+				"resource_type": "folder",
+				"owner":         subFolderData["owner"],
+			})
+		}
+
+		// Dosya response'ları formatla
+		fileList := make([]fiber.Map, 0, len(accessibleFiles))
+		for _, fileData := range accessibleFiles {
+			fileList = append(fileList, fiber.Map{
+				"resource":      fileData["file"],
+				"access_type":   fileData["access_type"],
+				"resource_type": "file",
+				"owner":         fileData["owner"],
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"folder": models.FolderResponse{
+				ID:        folder.ID.Hex(),
+				Name:      folder.Name,
+				Color:     folder.Color,
+				ItemCount: len(accessibleSubFolders) + len(accessibleFiles),
+				FolderID:  folder.FolderID,
+				CreatedAt: folder.CreatedAt,
+				UpdatedAt: folder.UpdatedAt,
+			},
+			"folders": folderList,
+			"files":   fileList,
+			"count":   len(folderList) + len(fileList),
+		})
 	}
 }
 

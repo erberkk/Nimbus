@@ -61,6 +61,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	{
 		shares.Get("/resource/:resourceId", handlers.GetResourceShares())
 		shares.Get("/shared-with-me", handlers.GetSharedWithMe())
+		shares.Get("/shared-folder/:folderId", handlers.GetSharedFolderContents())
 		shares.Put("/access/:resourceId", handlers.UpdateAccessPermission())
 		shares.Delete("/access/:resourceId/:userId", handlers.RemoveUserAccess())
 		// Public link access (no JWT required for link generation, but required for access)

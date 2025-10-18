@@ -191,6 +191,11 @@ export const shareApi = {
     return api.get('/shares/shared-with-me');
   },
 
+  // Get shared folder contents
+  getSharedFolderContents: folderId => {
+    return api.get(`/shares/shared-folder/${folderId}`);
+  },
+
   // Update access permission
   updateAccessPermission: (resourceId, updateData) => {
     return api.put(`/shares/access/${resourceId}`, updateData);

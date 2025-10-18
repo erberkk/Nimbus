@@ -56,6 +56,10 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
     loadStorageInfo();
   }, []);
 
+  useEffect(() => {
+    setSelected(selectedMenu || 'home');
+  }, [selectedMenu]);
+
   const loadStorageInfo = async () => {
     try {
       const response = await folderApi.getStorageUsage();
