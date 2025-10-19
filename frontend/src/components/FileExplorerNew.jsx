@@ -126,6 +126,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         onMenuOpen={handleMenuOpen}
         formatFileSize={formatFileSize}
         formatDate={formatDate}
+        onUploadSuccess={handleUploadSuccess}
       />
 
       <FileExplorerContextMenu
@@ -135,6 +136,8 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         onDownloadFile={handleDownloadFile}
         onDeleteFile={handleDeleteFile}
         onDeleteFolder={handleDeleteFolder}
+        onCreateFolder={dialogs.openCreateFolder}
+        onFileUpload={dialogs.openFileUpload}
       />
 
       <FileExplorerDialogs

@@ -41,7 +41,66 @@ const FileExplorerContent = ({
   onMenuOpen,
   formatFileSize,
   formatDate,
+  onUploadSuccess,
 }) => {
+  // Direkt dosya yükleme fonksiyonu
+  const handleDirectFileUpload = async (files) => {
+    try {
+      window.toast?.info(`${files.length} dosya yükleniyor...`);
+      
+      for (const file of files) {
+        await uploadSingleFile(file);
+      }
+      
+      window.toast?.success(`${files.length} dosya başarıyla yüklendi!`);
+      
+      // Yükleme tamamlandıktan sonra içeriği yenile
+      if (onUploadSuccess) {
+        onUploadSuccess();
+      } else {
+        window.location.reload(); // Fallback
+      }
+    } catch (error) {
+      window.toast?.error(`Dosya yükleme hatası: ${error.message}`);
+    }
+  };
+
+  // Tek dosya yükleme fonksiyonu
+  const uploadSingleFile = async (file) => {
+    const { fileApi } = await import('../services/api');
+    
+    // Presigned URL al
+    const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type);
+    const { presigned_url, minio_path } = presignedResponse;
+
+    // Dosyayı MinIO'ya yükle
+    const uploadResponse = await fetch(presigned_url, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Upload failed: ${uploadResponse.statusText}`);
+    }
+
+    // MongoDB'ye dosya kaydı oluştur
+    const currentFolder = navigation.getCurrentNavState().currentFolder;
+    const fileData = {
+      filename: file.name,
+      size: file.size,
+      content_type: file.type,
+      minio_path: minio_path,
+    };
+    
+    if (currentFolder && currentFolder.id) {
+      fileData.folder_id = currentFolder.id;
+    }
+
+    const result = await fileApi.createFile(fileData);
+  };
   if (fileExplorer.loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
@@ -51,7 +110,157 @@ const FileExplorerContent = ({
   }
 
   return (
-    <>
+    <Box
+      sx={{ position: 'relative', height: '100%', width: '100%' }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenuOpen(e, null);
+      }}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const overlay = document.getElementById('drag-overlay');
+        if (overlay) overlay.style.display = 'flex';
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          const overlay = document.getElementById('drag-overlay');
+          if (overlay) overlay.style.display = 'none';
+        }
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onDrop={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const overlay = document.getElementById('drag-overlay');
+        if (overlay) overlay.style.display = 'none';
+
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          const files = Array.from(e.dataTransfer.files);
+          await handleDirectFileUpload(files);
+        }
+      }}
+    >
+      {/* Drag & Drop Overlay */}
+      <Box
+        sx={{
+          position: 'absolute',
+          bottom: 30,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'none',
+          zIndex: 1000,
+          minWidth: 480,
+          maxWidth: 600,
+          '@keyframes pulse': {
+            '0%': {
+              transform: 'translateX(-50%) scale(1)',
+            },
+            '50%': {
+              transform: 'translateX(-50%) scale(1.02)',
+            },
+            '100%': {
+              transform: 'translateX(-50%) scale(1)',
+            },
+          },
+          '@keyframes float': {
+            '0%, 100%': {
+              transform: 'translateX(-50%) translateY(0px)',
+            },
+            '50%': {
+              transform: 'translateX(-50%) translateY(-3px)',
+            },
+          },
+          '@keyframes shimmer': {
+            '0%': {
+              transform: 'translateX(-100%)',
+            },
+            '100%': {
+              transform: 'translateX(100%)',
+            },
+          },
+          animation: 'pulse 3s ease-in-out infinite, float 2s ease-in-out infinite',
+        }}
+        id="drag-overlay"
+      >
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            borderRadius: 3,
+            px: 4,
+            py: 2,
+            textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4), 0 10px 30px rgba(0,0,0,0.2)',
+            backdropFilter: 'blur(20px)',
+            position: 'relative',
+            overflow: 'hidden',
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: '-100%',
+              width: '100%',
+              height: '100%',
+              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+              animation: 'shimmer 3s infinite',
+            },
+          }}
+        >
+          <Box
+            sx={{
+              position: 'relative',
+              zIndex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+            }}
+          >
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                bgcolor: 'rgba(255,255,255,0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <CloudUploadIcon sx={{ fontSize: 24, color: 'white' }} />
+            </Box>
+            <Box sx={{ textAlign: 'left' }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 600,
+                  mb: 0.5,
+                  fontSize: '1rem',
+                }}
+              >
+                Dosyaları buraya bırakın
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  opacity: 0.9,
+                  fontSize: '0.8rem',
+                }}
+              >
+                Sürükleyip bıraktığınız dosyalar yüklenecek
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+
       {/* Empty State - Always show when no content */}
       {fileExplorer.folders.length === 0 && fileExplorer.files.length === 0 && (
         <Box sx={{
@@ -74,40 +283,8 @@ const FileExplorerContent = ({
               {navigation.getCurrentNavState().currentFolder ? 'Bu klasör boş' : 'Henüz klasör veya dosya yok'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {navigation.getCurrentNavState().currentFolder
-                ? 'Dosya yükleyerek başlayın'
-                : 'Yeni klasör oluşturun veya dosya yükleyin'}
+              Sağ tıklayarak yeni klasör oluşturun veya dosya yükleyin
             </Typography>
-
-            {/* Show buttons in both root and folder views */}
-            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-              <Button
-                variant="contained"
-                startIcon={<CreateNewFolderIcon />}
-                onClick={onCreateFolder}
-                sx={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
-                }}
-              >
-                Yeni Klasör Oluştur
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<CloudUploadIcon />}
-                onClick={onFileUpload}
-                sx={{
-                  borderColor: '#667eea',
-                  color: '#667eea',
-                  '&:hover': {
-                    borderColor: '#764ba2',
-                    backgroundColor: 'rgba(102, 126, 234, 0.04)',
-                  }
-                }}
-              >
-                Dosya Yükle
-              </Button>
-            </Box>
           </MotionBox>
         </Box>
       )}
@@ -292,7 +469,7 @@ const FileExplorerContent = ({
           </Box>
         )
       ) : null}
-    </>
+    </Box>
   );
 };
 

@@ -31,6 +31,7 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [isFolderUpload, setIsFolderUpload] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleDrag = e => {
@@ -143,9 +144,85 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
     });
   };
 
+  const handleMultipleFiles = async files => {
+    setUploading(true);
+    setProgress(0);
+    setError('');
+    setSuccess('');
+
+    let uploadedCount = 0;
+    const totalFiles = files.length;
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        await uploadFile(file);
+        uploadedCount++;
+        setProgress((uploadedCount / totalFiles) * 100);
+      }
+
+      setSuccess(`${uploadedCount} dosya başarıyla yüklendi`);
+      setTimeout(() => {
+        onUploadSuccess?.();
+        onClose();
+      }, 2000);
+
+    } catch (error) {
+      setError(`Yükleme hatası: ${error.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const uploadFile = async file => {
+    // Aynı upload logic ama tek dosya için
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Presigned URL al
+        const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type);
+        const { presigned_url } = presignedResponse;
+
+        // Dosyayı yükle
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', e => {
+          if (e.lengthComputable) {
+            // Bu dosyadaki progress'ı hesapla
+            const fileProgress = (e.loaded / e.total) * (100 / files.length);
+            setProgress(prev => prev + fileProgress);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            resolve();
+          } else {
+            reject(new Error(`Upload failed: ${xhr.statusText}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'));
+        });
+
+        xhr.open('PUT', presigned_url);
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        xhr.send(file);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
   const handleFileSelect = e => {
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      if (isFolderUpload) {
+        // Klasör yükleme modu - tüm dosyaları yükle
+        const files = Array.from(e.target.files);
+        handleMultipleFiles(files);
+      } else {
+        // Tek dosya yükleme modu
+        handleFile(e.target.files[0]);
+      }
     }
   };
 
@@ -169,17 +246,39 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CloudUploadIcon sx={{ color: 'primary.main' }} />
-          <Typography variant="h6">Dosya Yükle</Typography>
+          <Typography variant="h6">{isFolderUpload ? 'Klasör Yükle' : 'Dosya Yükle'}</Typography>
         </Box>
       </DialogTitle>
 
       <DialogContent>
+        {/* Upload Mode Toggle */}
+        <Box sx={{ mb: 3, display: 'flex', gap: 1 }}>
+          <Button
+            variant={!isFolderUpload ? 'contained' : 'outlined'}
+            size="small"
+            onClick={() => setIsFolderUpload(false)}
+            sx={{ flex: 1 }}
+          >
+            Tek Dosya
+          </Button>
+          <Button
+            variant={isFolderUpload ? 'contained' : 'outlined'}
+            size="small"
+            onClick={() => setIsFolderUpload(true)}
+            sx={{ flex: 1 }}
+          >
+            Klasör
+          </Button>
+        </Box>
+
         <input
           ref={fileInputRef}
           type="file"
           onChange={handleFileSelect}
           style={{ display: 'none' }}
           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.mp3,.wav,.flac,.aac,.ogg,.m4a,.mp4,.avi,.mov,.wmv,.webm,.mkv"
+          multiple={!isFolderUpload}
+          webkitdirectory={isFolderUpload ? "" : undefined}
         />
 
       <AnimatePresence>

@@ -41,6 +41,8 @@ const Navbar = () => {
         bgcolor: 'background.paper',
         borderBottom: 1,
         borderColor: 'divider',
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
       }}
     >
       <Container maxWidth="xl">

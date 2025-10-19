@@ -106,7 +106,8 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
       sx={{
         width: 220,
         height: 'calc(100vh - 64px)',
-        bgcolor: 'background.paper',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
         display: 'flex',
         flexDirection: 'column',
         position: 'fixed',
@@ -123,15 +124,20 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
           startIcon={<AddIcon />}
           onClick={handleNewMenuOpen}
                  sx={{
-                   width: '100%',
+                   width: 'auto',
+                   px: 2,
                    height: 36,
                    borderRadius: 1.5,
-                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                   backgroundColor: 'white',
+                   color: '#667eea',
                    textTransform: 'none',
                    fontSize: '0.85rem',
-                   fontWeight: 500,
+                   fontWeight: 600,
+                   boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+                   '& .MuiSvgIcon-root': { color: '#667eea' },
                    '&:hover': {
-                     background: 'linear-gradient(135deg, #5568d3 0%, #653a8b 100%)',
+                     backgroundColor: 'rgba(255,255,255,0.95)',
+                     boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
                    },
                  }}
         >
@@ -217,24 +223,24 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
                   borderRadius: 1.5,
                   py: 1,
                   '&.Mui-selected': {
-                    bgcolor: 'rgba(102, 126, 234, 0.08)',
-                    color: 'primary.main',
+                    bgcolor: 'rgba(255, 255, 255, 0.16)',
+                    color: 'white',
                     '&:hover': {
-                      bgcolor: 'rgba(102, 126, 234, 0.12)',
+                      bgcolor: 'rgba(255, 255, 255, 0.22)',
                     },
                     '& .MuiListItemIcon-root': {
-                      color: 'primary.main',
+                      color: 'white',
                     },
                   },
                   '&:hover': {
-                    bgcolor: 'rgba(0, 0, 0, 0.04)',
+                    bgcolor: 'rgba(255, 255, 255, 0.10)',
                   },
                 }}
               >
                 <ListItemIcon
                   sx={{
                     minWidth: 32,
-                    color: selected === item.id ? 'primary.main' : 'text.secondary',
+                    color: 'white',
                   }}
                 >
                   {item.icon}
@@ -244,6 +250,7 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
                   primaryTypographyProps={{
                     fontSize: '0.85rem',
                     fontWeight: selected === item.id ? 600 : 400,
+                    color: 'white',
                   }}
                 />
               </ListItemButton>
@@ -254,29 +261,31 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
 
       {/* Storage Section */}
       <Box sx={{ px: 2, py: 1.5, mt: 'auto', mb: 1, flexShrink: 0 }}>
-        <Divider sx={{ mb: 1.5 }} />
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
-          <CloudQueueIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 1 }} />
-          <Typography variant="body2" color="text.secondary" fontWeight={500} fontSize="0.8rem">
-            {t('sidebar.storage') || 'Storage'}
+        <Divider sx={{ mb: 1.5, borderColor: 'rgba(255,255,255,0.24)' }} />
+        <Box sx={{ bgcolor: 'white', borderRadius: 2, p: 1.25 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
+            <CloudQueueIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 1 }} />
+            <Typography variant="body2" color="text.secondary" fontWeight={600} fontSize="0.8rem">
+              {t('sidebar.storage') || 'Storage'}
+            </Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={storageInfo.percent}
+            sx={{
+              height: 6,
+              borderRadius: 4,
+              bgcolor: 'grey.200',
+              '& .MuiLinearProgress-bar': {
+                borderRadius: 4,
+                backgroundColor: '#FBBF24',
+              },
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontSize: '0.7rem' }}>
+            15 GB {t('sidebar.of') || 'of'} {storageInfo.usage} {t('sidebar.used') || 'used'}
           </Typography>
         </Box>
-        <LinearProgress
-          variant="determinate"
-          value={storageInfo.percent}
-          sx={{
-            height: 6,
-            borderRadius: 4,
-            bgcolor: 'grey.200',
-            '& .MuiLinearProgress-bar': {
-              borderRadius: 4,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            },
-          }}
-        />
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontSize: '0.7rem' }}>
-          15 GB {t('sidebar.of') || 'of'} {storageInfo.usage} {t('sidebar.used') || 'used'}
-        </Typography>
       </Box>
     </Box>
   );

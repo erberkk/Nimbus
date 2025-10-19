@@ -136,51 +136,29 @@ const FileExplorerHeader = ({
           ]}
         </Breadcrumbs>
 
-        {/* Action Buttons */}
+        {/* View Mode Toggle */}
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          <Button
-            variant="outlined"
-            startIcon={<CreateNewFolderIcon />}
-            onClick={onCreateFolder}
+          <IconButton
             size="small"
-            sx={{ textTransform: 'none' }}
+            onClick={() => onViewModeChange('list')}
+            sx={{
+              bgcolor: uiState.viewMode === 'list' ? 'action.selected' : 'transparent',
+            }}
           >
-            Klasör Oluştur
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<CloudUploadIcon />}
-            onClick={onFileUpload}
+            <ViewListIcon />
+          </IconButton>
+          <IconButton
             size="small"
-            sx={{ textTransform: 'none' }}
+            onClick={() => onViewModeChange('grid')}
+            sx={{
+              bgcolor: uiState.viewMode === 'grid' ? 'action.selected' : 'transparent',
+            }}
           >
-            Dosya Yükle
-          </Button>
-
-          {/* View Mode Toggle */}
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <IconButton
-              size="small"
-              onClick={() => onViewModeChange('list')}
-              sx={{
-                bgcolor: uiState.viewMode === 'list' ? 'action.selected' : 'transparent',
-              }}
-            >
-              <ViewListIcon />
-            </IconButton>
-            <IconButton
-              size="small"
-              onClick={() => onViewModeChange('grid')}
-              sx={{
-                bgcolor: uiState.viewMode === 'grid' ? 'action.selected' : 'transparent',
-              }}
-            >
-              <ViewModuleIcon />
-            </IconButton>
-            <IconButton size="small">
-              {/* More options can be added here */}
-            </IconButton>
-          </Box>
+            <ViewModuleIcon />
+          </IconButton>
+          <IconButton size="small">
+            {/* More options can be added here */}
+          </IconButton>
         </Box>
       </Toolbar>
 
