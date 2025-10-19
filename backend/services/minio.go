@@ -41,6 +41,24 @@ var AllowedMimeTypes = map[string][]string{
 		"application/zip", "application/x-rar-compressed",
 		"application/x-7z-compressed", "application/gzip",
 	},
+	"audio": {
+		"audio/mpeg",  // MP3
+		"audio/wav",   // WAV
+		"audio/flac",  // FLAC
+		"audio/aac",   // AAC
+		"audio/ogg",   // OGG
+		"audio/mp4",   // M4A
+		"audio/x-m4a", // M4A
+	},
+	"video": {
+		"video/mp4",        // MP4
+		"video/avi",        // AVI
+		"video/quicktime",  // MOV
+		"video/x-msvideo",  // AVI
+		"video/x-ms-wmv",   // WMV
+		"video/webm",       // WebM
+		"video/x-matroska", // MKV
+	},
 }
 
 // Güvenlik için maksimum dosya boyutu (100MB)
