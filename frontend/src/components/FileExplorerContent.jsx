@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -24,6 +24,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import FolderCard from './FolderCard';
 import FileCard from './FileCard';
+import NimbusChatPanel from './NimbusChatPanel';
 
 const MotionBox = motion.create(Box);
 
@@ -43,6 +44,22 @@ const FileExplorerContent = ({
   formatDate,
   onUploadSuccess,
 }) => {
+  // Chat panel state
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  // Nimbus'a Sor fonksiyonu
+  const handleAskNimbus = (file) => {
+    setSelectedFile(file);
+    setChatPanelOpen(true);
+  };
+
+  // Chat paneli kapatma
+  const handleCloseChatPanel = () => {
+    setChatPanelOpen(false);
+    setSelectedFile(null);
+  };
+
   // Direkt dosya yükleme fonksiyonu
   const handleDirectFileUpload = async (files) => {
     try {
@@ -352,6 +369,7 @@ const FileExplorerContent = ({
                             onDownload={onFileDownload}
                             onDelete={onFileDelete}
                             onShare={file => onShare(file, 'file')}
+                            onAskNimbus={handleAskNimbus}
                           />
                         </MotionBox>
                       </Grid>
@@ -469,6 +487,13 @@ const FileExplorerContent = ({
           </Box>
         )
       ) : null}
+
+      {/* Nimbus Chat Panel */}
+      <NimbusChatPanel
+        isOpen={chatPanelOpen}
+        onClose={handleCloseChatPanel}
+        file={selectedFile}
+      />
     </Box>
   );
 };

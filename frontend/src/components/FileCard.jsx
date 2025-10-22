@@ -19,6 +19,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import ShareIcon from '@mui/icons-material/Share';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 const MotionCard = motion.create(Card);
 
@@ -52,7 +53,7 @@ const formatDate = dateString => {
   });
 };
 
-const FileCard = ({ file, onDownload, onDelete, onMove, onShare }) => {
+const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus }) => {
   const [anchorEl, setAnchorEl] = useState(null);
 
   const handleMenuOpen = event => {
@@ -95,6 +96,21 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare }) => {
       onShare(file);
     }
   };
+
+  const handleAskNimbus = e => {
+    e.stopPropagation();
+    handleMenuClose();
+    if (onAskNimbus) {
+      onAskNimbus(file);
+    }
+  };
+
+  // Word ve PDF dosyaları için Nimbus'a Sor seçeneğini göster
+  const isAskableFile = file.content_type?.includes('pdf') || 
+                       file.content_type?.includes('document') ||
+                       file.filename?.toLowerCase().endsWith('.doc') ||
+                       file.filename?.toLowerCase().endsWith('.docx') ||
+                       file.filename?.toLowerCase().endsWith('.pdf');
 
   return (
     <MotionCard
@@ -180,6 +196,12 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare }) => {
           <DownloadIcon sx={{ mr: 1.5, fontSize: 20 }} />
           İndir
         </MenuItem>
+        {isAskableFile && (
+          <MenuItem onClick={handleAskNimbus} sx={{ color: '#667eea' }}>
+            <SmartToyIcon sx={{ mr: 1.5, fontSize: 20 }} />
+            Nimbus'a Sor
+          </MenuItem>
+        )}
         <MenuItem onClick={handleShare}>
           <ShareIcon sx={{ mr: 1.5, fontSize: 20 }} />
           Paylaş
