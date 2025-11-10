@@ -37,6 +37,40 @@ var AllowedMimeTypes = map[string][]string{
 		"text/plain", "text/csv",
 		"application/rtf",
 	},
+	"code": {
+		"text/plain",
+		"text/x-python",
+		"text/x-java",
+		"text/x-csharp",
+		"text/x-c++",
+		"text/x-c",
+		"text/javascript",
+		"application/javascript",
+		"text/typescript",
+		"application/typescript",
+		"application/json",
+		"text/json",
+		"text/markdown",
+		"text/x-markdown",
+		"text/xml",
+		"application/xml",
+		"text/css",
+		"text/html",
+		"application/x-sh",
+		"text/x-sh",
+		"text/x-kotlin",
+		"text/x-scala",
+		"text/x-go",
+		"text/x-rust",
+		"text/x-php",
+		"text/x-ruby",
+		"text/x-perl",
+		"application/x-yaml",
+		"text/yaml",
+		"text/x-yaml",
+		"text/x-sql",
+		"application/x-sql",
+	},
 	"archive": {
 		"application/zip", "application/x-rar-compressed",
 		"application/x-7z-compressed", "application/gzip",
@@ -64,11 +98,11 @@ var AllowedMimeTypes = map[string][]string{
 // Güvenlik için maksimum dosya boyutu (100MB)
 const MaxFileSize = 100 * 1024 * 1024
 
-// Tehlikeli dosya uzantıları
+// Tehlikeli dosya uzantıları (sadece executable'lar)
 var BlockedExtensions = []string{
-	".exe", ".bat", ".cmd", ".com", ".pif", ".scr", ".vbs", ".js", ".jar",
+	".exe", ".bat", ".cmd", ".com", ".pif", ".scr", ".vbs",
 	".msi", ".dll", ".so", ".dylib", ".deb", ".rpm", ".apk",
-	".sh", ".ps1", ".py", ".pl", ".rb", ".php", ".asp", ".jsp",
+	".jar", // Java executable
 }
 
 func InitMinIO(cfg *config.Config) error {
@@ -157,13 +191,29 @@ func (m *MinIOService) ValidateFile(filename string, contentType string, size in
 	allowed := false
 	for _, types := range AllowedMimeTypes {
 		for _, allowedType := range types {
-			if contentType == allowedType {
+			// Exact match veya prefix match (text/x- gibi)
+			if contentType == allowedType || strings.HasPrefix(contentType, allowedType) {
 				allowed = true
 				break
 			}
 		}
 		if allowed {
 			break
+		}
+	}
+
+	// Eğer MIME type kontrolü başarısız olduysa, dosya uzantısına göre kod dosyası kontrolü yap
+	if !allowed {
+		codeExtensions := []string{".py", ".js", ".jsx", ".ts", ".tsx", ".cs", ".java", ".kt", ".kts",
+			".json", ".md", ".txt", ".xml", ".html", ".css", ".sh", ".bash", ".yaml", ".yml",
+			".go", ".rs", ".php", ".rb", ".pl", ".scala", ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp",
+			".sql", ".vue", ".svelte", ".swift", ".dart", ".lua", ".r", ".m", ".mm", ".ps1"}
+		extLower := strings.ToLower(ext)
+		for _, codeExt := range codeExtensions {
+			if extLower == codeExt {
+				allowed = true
+				break
+			}
 		}
 	}
 

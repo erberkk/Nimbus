@@ -4,6 +4,7 @@ import FileUpload from './FileUpload';
 import ShareDialog from './ShareDialog';
 import FilePreviewDialog from './FilePreviewDialog';
 import OnlyOfficeEditor from './OnlyOfficeEditor';
+import { isCodeFile } from '../utils/fileUtils';
 
 const FileExplorerDialogs = ({
   dialogs,
@@ -50,16 +51,32 @@ const FileExplorerDialogs = ({
         onDownload={onDownloadFile}
       />
 
-      {/* OnlyOffice Editor Dialog */}
-      <OnlyOfficeEditor
-        open={dialogs.editDialogOpen}
-        onClose={dialogs.closeEditDialog}
-        file={dialogs.editFile}
-        onSave={() => {
-          // Trigger refresh after save
-          uiState.triggerRefresh();
-        }}
-      />
+      {/* OnlyOffice Editor Dialog - Only for Office documents */}
+      {dialogs.editFile && !isCodeFile(dialogs.editFile.content_type, dialogs.editFile.filename) && (
+        <OnlyOfficeEditor
+          open={dialogs.editDialogOpen}
+          onClose={dialogs.closeEditDialog}
+          file={dialogs.editFile}
+          onSave={() => {
+            // Trigger refresh after save
+            uiState.triggerRefresh();
+          }}
+        />
+      )}
+
+      {/* Code files use FilePreviewDialog for editing */}
+      {dialogs.editFile && isCodeFile(dialogs.editFile.content_type, dialogs.editFile.filename) && (
+        <FilePreviewDialog
+          open={dialogs.editDialogOpen}
+          onClose={dialogs.closeEditDialog}
+          file={dialogs.editFile}
+          onDownload={onDownloadFile}
+          onSave={() => {
+            // Trigger refresh after save
+            uiState.triggerRefresh();
+          }}
+        />
+      )}
     </>
   );
 };

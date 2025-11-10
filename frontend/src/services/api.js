@@ -153,6 +153,27 @@ export const fileApi = {
   getOnlyOfficeConfig: (fileId, mode = 'edit') => {
     return api.get(`/files/onlyoffice-config?file_id=${encodeURIComponent(fileId)}&mode=${mode}`);
   },
+
+  // Get file content as text (for code files)
+  getFileContent: async (fileId, cacheBust = false) => {
+    const apiInstance = new ApiService();
+    let url = `${API_BASE_URL}/files/content?file_id=${encodeURIComponent(fileId)}`;
+    if (cacheBust) {
+      url += `&_t=${Date.now()}`;
+    }
+    const headers = apiInstance.getAuthHeaders();
+    headers['Accept'] = 'text/plain';
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error! status: ${response.status}`);
+    }
+    return await response.text();
+  },
+
+  updateFileContent: (fileId, content) => {
+    return api.put(`/files/${encodeURIComponent(fileId)}/content`, { content });
+  },
 };
 
 // Folder specific methods

@@ -320,7 +320,7 @@ func getOnlyOfficeMapping(contentType string) OnlyOfficeFileMapping {
 		contentTypeLower == "application/msword" {
 		return OnlyOfficeFileMapping{
 			FileType:     "docx",
-			DocumentType: "text",
+			DocumentType: "word",
 		}
 	}
 
@@ -328,7 +328,7 @@ func getOnlyOfficeMapping(contentType string) OnlyOfficeFileMapping {
 		contentTypeLower == "application/vnd.ms-excel" {
 		return OnlyOfficeFileMapping{
 			FileType:     "xlsx",
-			DocumentType: "spreadsheet",
+			DocumentType: "cell",
 		}
 	}
 
@@ -336,20 +336,20 @@ func getOnlyOfficeMapping(contentType string) OnlyOfficeFileMapping {
 		contentTypeLower == "application/vnd.ms-powerpoint" {
 		return OnlyOfficeFileMapping{
 			FileType:     "pptx",
-			DocumentType: "presentation",
+			DocumentType: "slide",
 		}
 	}
 
 	if strings.Contains(contentTypeLower, "pdf") {
 		return OnlyOfficeFileMapping{
 			FileType:     "pdf",
-			DocumentType: "text",
+			DocumentType: "pdf",
 		}
 	}
 
 	return OnlyOfficeFileMapping{
 		FileType:     "docx",
-		DocumentType: "text",
+		DocumentType: "word",
 	}
 }
 
@@ -366,10 +366,10 @@ func generateDocumentKey(fileID string) string {
 }
 
 // signOnlyOfficeConfig - OnlyOffice config'i JWT ile imzala
-func signOnlyOfficeConfig(config map[string]interface{}, secret string) (string, error) {
-	configJSON, err := json.Marshal(config)
+func signOnlyOfficeConfig(payload map[string]interface{}, secret string) (string, error) {
+	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		return "", fmt.Errorf("config marshal hatası: %v", err)
+		return "", fmt.Errorf("payload marshal hatası: %v", err)
 	}
 
 	header := map[string]string{
@@ -379,7 +379,7 @@ func signOnlyOfficeConfig(config map[string]interface{}, secret string) (string,
 	headerJSON, _ := json.Marshal(header)
 	headerEncoded := base64.RawURLEncoding.EncodeToString(headerJSON)
 
-	payloadEncoded := base64.RawURLEncoding.EncodeToString(configJSON)
+	payloadEncoded := base64.RawURLEncoding.EncodeToString(payloadJSON)
 
 	signatureInput := headerEncoded + "." + payloadEncoded
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -459,20 +459,29 @@ func GetOnlyOfficeConfig(cfg *config.Config) fiber.Handler {
 			editorConfig["callbackUrl"] = callbackURL
 		}
 
+		documentConfig := map[string]interface{}{
+			"fileType": getOnlyOfficeFileType(file.ContentType),
+			"key":      docKey,
+			"title":    file.Filename,
+			"url":      docURL,
+		}
+
 		config := map[string]interface{}{
-			"document": map[string]interface{}{
-				"fileType": getOnlyOfficeFileType(file.ContentType),
-				"key":      docKey,
-				"title":    file.Filename,
-				"url":      docURL,
-			},
+			"document":     documentConfig,
 			"documentType": getOnlyOfficeDocumentType(file.ContentType),
 			"editorConfig": editorConfig,
 			"type":         "desktop",
 		}
 
 		if cfg.OnlyOfficeJWTSecret != "" {
-			token, err := signOnlyOfficeConfig(config, cfg.OnlyOfficeJWTSecret)
+			// JWT payload should only contain document info
+			jwtPayload := map[string]interface{}{
+				"document":     documentConfig,
+				"documentType": getOnlyOfficeDocumentType(file.ContentType),
+				"editorConfig": editorConfig,
+			}
+
+			token, err := signOnlyOfficeConfig(jwtPayload, cfg.OnlyOfficeJWTSecret)
 			if err != nil {
 				log.Printf("JWT token oluşturma hatası: %v", err)
 			} else {
@@ -692,5 +701,133 @@ func GetOnlyOfficeDocument(cfg *config.Config) fiber.Handler {
 		}
 
 		return nil
+	}
+}
+
+// GetFileContent - Kod dosyası içeriğini text olarak döndür
+func GetFileContent(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return middleware.BadRequestResponse(c, err.Error())
+		}
+
+		fileID := c.Query("file_id")
+		if fileID == "" {
+			return middleware.BadRequestResponse(c, "file_id parametresi gerekli")
+		}
+
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			log.Printf("Dosya bulunamadı: %v", err)
+			return middleware.NotFoundResponse(c, "Dosya bulunamadı")
+		}
+
+		hasReadAccess, err := helpers.CheckFileAccessWithOwnerFallback(userID, fileID, file.UserID, helpers.AccessLevelRead)
+		if err != nil {
+			log.Printf("Access check hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Erişim kontrolü yapılamadı")
+		}
+		if !hasReadAccess {
+			return middleware.ForbiddenResponse(c, "Bu dosyaya erişim yetkiniz yok")
+		}
+
+		objectName := file.MinioPath
+		if objectName == "" {
+			objectName = services.MinioService.GetUserFilePath(file.UserID, file.Filename)
+		}
+		ctx := context.Background()
+
+		object, err := services.MinioService.Client.GetObject(ctx, "user-files", objectName, minio.GetObjectOptions{})
+		if err != nil {
+			log.Printf("MinIO'dan dosya okuma hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Dosya okunamadı")
+		}
+		defer object.Close()
+
+		fileContent, err := io.ReadAll(object)
+		if err != nil {
+			log.Printf("Dosya içeriği okuma hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Dosya içeriği okunamadı")
+		}
+
+		c.Set("Content-Type", "text/plain; charset=utf-8")
+		c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.Set("Pragma", "no-cache")
+		c.Set("Expires", "0")
+
+		return c.Send(fileContent)
+	}
+}
+
+// UpdateFileContent - Kod dosyası içeriğini güncelle
+func UpdateFileContent(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return middleware.BadRequestResponse(c, err.Error())
+		}
+
+		fileID := c.Params("id")
+		if fileID == "" {
+			return middleware.BadRequestResponse(c, "file_id parametresi gerekli")
+		}
+
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			log.Printf("Dosya bulunamadı: %v", err)
+			return middleware.NotFoundResponse(c, "Dosya bulunamadı")
+		}
+
+		hasWriteAccess, err := helpers.CheckFileAccessWithOwnerFallback(userID, fileID, file.UserID, helpers.AccessLevelWrite)
+		if err != nil {
+			log.Printf("Access check hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Erişim kontrolü yapılamadı")
+		}
+		if !hasWriteAccess {
+			return middleware.ForbiddenResponse(c, "Bu dosyayı düzenleme yetkiniz yok")
+		}
+
+		var req struct {
+			Content string `json:"content"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return middleware.BadRequestResponse(c, "Geçersiz istek verisi")
+		}
+
+		objectName := file.MinioPath
+		if objectName == "" {
+			objectName = services.MinioService.GetUserFilePath(file.UserID, file.Filename)
+		}
+		ctx := context.Background()
+
+		fileContent := []byte(req.Content)
+		_, err = services.MinioService.Client.PutObject(
+			ctx,
+			"user-files",
+			objectName,
+			bytes.NewReader(fileContent),
+			int64(len(fileContent)),
+			minio.PutObjectOptions{
+				ContentType: file.ContentType,
+			},
+		)
+		if err != nil {
+			log.Printf("MinIO'ya yükleme hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Dosya güncellenemedi")
+		}
+
+		updates := map[string]interface{}{
+			"size": int64(len(fileContent)),
+		}
+		if err := services.FileServiceInstance.UpdateFileRecord(fileID, updates); err != nil {
+			log.Printf("Dosya metadata güncelleme hatası: %v", err)
+		}
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Dosya başarıyla güncellendi",
+			"size":    len(fileContent),
+		})
 	}
 }

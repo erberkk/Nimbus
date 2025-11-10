@@ -42,6 +42,8 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 		files.Get("/preview-url", handlers.GetPreviewPresignedURL(cfg)) // Supports ?file_id=xxx or ?filename=xxx
 		files.Post("/:id/move", handlers.MoveFile(cfg))
 		files.Get("/onlyoffice-config", handlers.GetOnlyOfficeConfig(cfg)) // OnlyOffice editor config
+		files.Get("/content", handlers.GetFileContent(cfg))                // Get file content as text (for code files)
+		files.Put("/:id/content", handlers.UpdateFileContent(cfg))         // Update file content (for code files)
 	}
 
 	// OnlyOffice callback (public - called by OnlyOffice server)

@@ -12,6 +12,7 @@ import {
   Chip,
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Slide } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -21,34 +22,49 @@ import VideoFileIcon from '@mui/icons-material/VideoFile';
 import DescriptionIcon from '@mui/icons-material/Description';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import { fileApi } from '../services/api';
-import { getFileType, isPreviewable as checkIsPreviewable, formatFileSize, isEditable, formatContentType } from '../utils/fileUtils';
+import { getFileType, isPreviewable as checkIsPreviewable, formatFileSize, isEditable, formatContentType, isCodeFile } from '../utils/fileUtils';
 import OnlyOfficeEditor from './OnlyOfficeEditor';
+import CodeEditor from './CodeEditor';
 
-const MotionDialog = motion.create(Dialog);
+const Transition = React.forwardRef(function Transition(props, ref) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
-const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
+const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [codeContent, setCodeContent] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const fileType = file ? getFileType(file.content_type, file.filename) : 'unknown';
   const fileIsPreviewable = file ? checkIsPreviewable(file.content_type, file.filename) : false;
   const fileIsEditable = file ? isEditable(file.content_type, file.filename) : false;
+  const fileIsCodeFile = file ? isCodeFile(file.content_type, file.filename) : false;
 
   useEffect(() => {
     if (!open || !file) {
       setPreviewUrl(null);
+      setCodeContent(null);
       setError(null);
       setLoading(false);
       return;
     }
 
-    if (fileIsEditable) {
+    // If it's a code file, load content
+    if (fileIsCodeFile) {
+      loadCodeContent();
+      return;
+    }
+
+    // If it's an Office document editable with OnlyOffice
+    if (fileIsEditable && !fileIsCodeFile) {
       setLoading(false);
       return;
     }
 
-    if (fileIsPreviewable && fileType !== 'word-doc') {
+    // For other previewable files (not code, not Office)
+    if (fileIsPreviewable && fileType !== 'word-doc' && !fileIsCodeFile) {
       loadPreviewUrl();
     } else if (fileType === 'word-doc') {
       setLoading(false);
@@ -60,7 +76,7 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, file, fileIsEditable, fileIsPreviewable]);
+  }, [open, file, fileIsEditable, fileIsPreviewable, fileIsCodeFile]);
 
   const loadPreviewUrl = async () => {
     if (!file) return;
@@ -78,6 +94,41 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
       window.toast?.error('Dosya önizlemesi yüklenemedi');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCodeContent = async (forceRefresh = false) => {
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const content = await fileApi.getFileContent(file.id, forceRefresh);
+      setCodeContent(content);
+    } catch (err) {
+      setError('Dosya içeriği yüklenemedi');
+      window.toast?.error('Dosya içeriği yüklenemedi');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCodeSave = async (content) => {
+    if (!file) return;
+
+    try {
+      setSaving(true);
+      await fileApi.updateFileContent(file.id, content);
+      setCodeContent(content);
+      window.toast?.success('Dosya başarıyla kaydedildi');
+      if (onSave) {
+        onSave();
+      }
+    } catch (err) {
+      window.toast?.error('Dosya kaydedilemedi');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -104,7 +155,9 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
         >
           <CircularProgress size={48} />
           <Typography variant="body2" color="text.secondary">
-            {fileType === 'word-docx' || fileType === 'excel' 
+            {fileType === 'code'
+              ? 'Kod dosyası yükleniyor...'
+              : fileType === 'word-docx' || fileType === 'excel' 
               ? 'Dosya dönüştürülüyor...' 
               : 'Dosya yükleniyor...'}
           </Typography>
@@ -136,7 +189,8 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
     }
 
     // For word-doc, show message without previewUrl
-    if (!previewUrl && fileType !== 'word-doc') {
+    // For code files, codeContent will be loaded separately
+    if (!previewUrl && fileType !== 'word-doc' && fileType !== 'code') {
       return null;
     }
 
@@ -250,6 +304,21 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
           </Box>
         );
 
+      case 'code':
+        return (
+          <Box sx={{ width: '100%', height: '100%' }}>
+            <CodeEditor
+              file={file}
+              content={codeContent}
+              readOnly={!fileIsEditable || (file?.isShared && file?.access_type === 'read')}
+              onChange={(content) => {
+                // Content changed, will be saved on Ctrl+S
+              }}
+              onSave={fileIsEditable && (!file?.isShared || file?.access_type !== 'read') ? handleCodeSave : null}
+            />
+          </Box>
+        );
+
       case 'word-docx':
       case 'excel':
       case 'powerpoint':
@@ -344,7 +413,8 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
 
   if (!file) return null;
 
-  if (fileIsEditable) {
+  // If it's an Office document (editable with OnlyOffice), use OnlyOffice
+  if (fileIsEditable && !fileIsCodeFile) {
     return (
       <OnlyOfficeEditor
         open={open}
@@ -356,23 +426,20 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
     );
   }
 
+  // If it's a code file, it will be handled in renderPreview
+
   return (
-    <MotionDialog
+    <Dialog
       open={open}
       onClose={onClose}
       maxWidth="lg"
       fullWidth
+      TransitionComponent={Transition}
       PaperProps={{
         sx: {
           borderRadius: 2,
           maxHeight: '90vh',
         },
-      }}
-      TransitionComponent={motion.div}
-      transition={{
-        type: 'spring',
-        damping: 25,
-        stiffness: 200,
       }}
     >
       <DialogTitle>
@@ -399,7 +466,15 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
         </Box>
       </DialogTitle>
 
-      <DialogContent dividers sx={{ p: 0, position: 'relative' }}>
+      <DialogContent 
+        dividers 
+        sx={{ 
+          p: 0, 
+          position: 'relative',
+          minHeight: fileIsCodeFile ? '70vh' : 'auto',
+          height: fileIsCodeFile ? '70vh' : 'auto',
+        }}
+      >
         <AnimatePresence mode="wait">
           <motion.div
             key={previewUrl || 'loading'}
@@ -407,7 +482,7 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            style={{ width: '100%' }}
+            style={{ width: '100%', height: '100%' }}
           >
             {renderPreview()}
           </motion.div>
@@ -434,7 +509,7 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
           </Button>
         )}
       </DialogActions>
-    </MotionDialog>
+    </Dialog>
   );
 };
 

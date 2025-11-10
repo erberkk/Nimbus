@@ -269,7 +269,7 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
           type="file"
           onChange={handleFileSelect}
           style={{ display: 'none' }}
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.mp3,.wav,.flac,.aac,.ogg,.m4a,.mp4,.avi,.mov,.wmv,.webm,.mkv"
+          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.mp3,.wav,.flac,.aac,.ogg,.m4a,.mp4,.avi,.mov,.wmv,.webm,.mkv,.py,.js,.jsx,.ts,.tsx,.cs,.java,.kt,.kts,.json,.md,.xml,.html,.css,.sh,.bash,.yaml,.yml,.go,.rs,.php,.rb,.pl,.scala,.c,.cpp,.cc,.cxx,.h,.hpp,.sql,.vue,.svelte,.swift,.dart,.lua,.r,.m,.mm,.ps1"
           multiple={!isFolderUpload}
           webkitdirectory={isFolderUpload ? "" : undefined}
         />

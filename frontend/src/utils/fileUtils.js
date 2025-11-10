@@ -22,6 +22,118 @@ const OFFICE_DOCUMENT_MAPPINGS = {
   },
 };
 
+// Monaco Editor language mappings
+const MONACO_LANGUAGE_MAP = {
+  // Python
+  'py': 'python',
+  'pyw': 'python',
+  'pyi': 'python',
+  // JavaScript/TypeScript
+  'js': 'javascript',
+  'jsx': 'javascript',
+  'mjs': 'javascript',
+  'cjs': 'javascript',
+  'ts': 'typescript',
+  'tsx': 'typescript',
+  // C#
+  'cs': 'csharp',
+  'csx': 'csharp',
+  // Java
+  'java': 'java',
+  // Kotlin
+  'kt': 'kotlin',
+  'kts': 'kotlin',
+  'ktm': 'kotlin',
+  // JSON
+  'json': 'json',
+  'jsonc': 'json',
+  // Markdown
+  'md': 'markdown',
+  'markdown': 'markdown',
+  'mdown': 'markdown',
+  'mkdn': 'markdown',
+  // Text
+  'txt': 'plaintext',
+  'text': 'plaintext',
+  // XML
+  'xml': 'xml',
+  'xsd': 'xml',
+  'xsl': 'xml',
+  'xslt': 'xml',
+  // HTML
+  'html': 'html',
+  'htm': 'html',
+  'xhtml': 'html',
+  // CSS
+  'css': 'css',
+  'scss': 'scss',
+  'sass': 'sass',
+  'less': 'less',
+  // Shell
+  'sh': 'shell',
+  'bash': 'shell',
+  'zsh': 'shell',
+  'fish': 'shell',
+  // YAML
+  'yaml': 'yaml',
+  'yml': 'yaml',
+  // Go
+  'go': 'go',
+  // Rust
+  'rs': 'rust',
+  // PHP
+  'php': 'php',
+  'phtml': 'php',
+  // Ruby
+  'rb': 'ruby',
+  'rake': 'ruby',
+  // Perl
+  'pl': 'perl',
+  'pm': 'perl',
+  // Scala
+  'scala': 'scala',
+  'sc': 'scala',
+  // C/C++
+  'c': 'c',
+  'cpp': 'cpp',
+  'cc': 'cpp',
+  'cxx': 'cpp',
+  'h': 'c',
+  'hpp': 'cpp',
+  'hxx': 'cpp',
+  // SQL
+  'sql': 'sql',
+  // Vue
+  'vue': 'vue',
+  // Svelte
+  'svelte': 'svelte',
+  // Swift
+  'swift': 'swift',
+  // Dart
+  'dart': 'dart',
+  // Lua
+  'lua': 'lua',
+  // R
+  'r': 'r',
+  'rdata': 'r',
+  'rds': 'r',
+  // Objective-C
+  'm': 'objective-c',
+  'mm': 'objective-cpp',
+  // PowerShell
+  'ps1': 'powershell',
+  'psm1': 'powershell',
+  'psd1': 'powershell',
+  // Dockerfile
+  'dockerfile': 'dockerfile',
+  // Makefile
+  'makefile': 'makefile',
+  'mk': 'makefile',
+};
+
+// Code file extensions for detection
+const CODE_FILE_EXTENSIONS = Object.keys(MONACO_LANGUAGE_MAP);
+
 /**
  * Check if content type matches office document pattern
  * @param {string} contentTypeLower - Lowercase content type
@@ -33,16 +145,78 @@ const matchesOfficePattern = (contentTypeLower, pattern) => {
 };
 
 /**
+ * Get Monaco Editor language from filename
+ * @param {string} filename - Name of the file
+ * @returns {string} Monaco language ID
+ */
+export const getMonacoLanguage = (filename = '') => {
+  if (!filename) return 'plaintext';
+  
+  const ext = filename.split('.').pop()?.toLowerCase();
+  return MONACO_LANGUAGE_MAP[ext] || 'plaintext';
+};
+
+/**
+ * Check if a file is a code file
+ * @param {string} contentType - MIME type of the file
+ * @param {string} filename - Name of the file (optional)
+ * @returns {boolean} True if file is a code file
+ */
+export const isCodeFile = (contentType, filename = '') => {
+  if (filename) {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (CODE_FILE_EXTENSIONS.includes(ext)) {
+      return true;
+    }
+  }
+  
+  if (!contentType) return false;
+  
+  const contentTypeLower = contentType.toLowerCase();
+  const codeContentTypes = [
+    'text/plain',
+    'text/x-',
+    'text/javascript',
+    'application/javascript',
+    'text/typescript',
+    'application/typescript',
+    'application/json',
+    'text/json',
+    'text/markdown',
+    'text/xml',
+    'application/xml',
+    'text/css',
+    'text/html',
+    'application/x-sh',
+    'text/x-sh',
+    'application/x-yaml',
+    'text/yaml',
+  ];
+  
+  return codeContentTypes.some(type => contentTypeLower.includes(type));
+};
+
+/**
  * Get file type from content type and filename
  * @param {string} contentType - MIME type of the file
  * @param {string} filename - Name of the file
- * @returns {string} File type: 'pdf', 'image', 'audio', 'video', 'word-docx', 'word-doc', 'excel', 'powerpoint', 'unknown'
+ * @returns {string} File type: 'pdf', 'image', 'audio', 'video', 'word-docx', 'word-doc', 'excel', 'powerpoint', 'code', 'unknown'
  */
 export const getFileType = (contentType, filename = '') => {
-  if (!contentType) return 'unknown';
+  if (!contentType) {
+    // If no contentType, check if it's a code file by extension
+    if (filename && isCodeFile(null, filename)) {
+      return 'code';
+    }
+    return 'unknown';
+  }
   
   const contentTypeLower = contentType.toLowerCase();
   const filenameLower = filename.toLowerCase();
+  
+  if (isCodeFile(contentType, filename)) {
+    return 'code';
+  }
   
   if (contentTypeLower.includes('pdf')) return 'pdf';
   if (contentTypeLower.startsWith('image/')) return 'image';
@@ -80,10 +254,8 @@ export const getFileType = (contentType, filename = '') => {
  * @returns {boolean} True if file can be previewed
  */
 export const isPreviewable = (contentType, filename = '') => {
-  if (!contentType) return false;
-  
   const fileType = getFileType(contentType, filename);
-  const previewableTypes = ['pdf', 'image', 'audio', 'video', 'word-docx', 'word-doc', 'excel', 'powerpoint'];
+  const previewableTypes = ['pdf', 'image', 'audio', 'video', 'word-docx', 'word-doc', 'excel', 'powerpoint', 'code'];
   return previewableTypes.includes(fileType);
 };
 
@@ -110,12 +282,17 @@ export const isAskableFile = (contentType, filename = '') => {
 };
 
 /**
- * Check if a file can be edited with OnlyOffice (Word, Excel, PowerPoint)
+ * Check if a file can be edited with OnlyOffice (Word, Excel, PowerPoint) or Monaco Editor (code files)
  * @param {string} contentType - MIME type of the file
  * @param {string} filename - Name of the file (optional)
  * @returns {boolean} True if file can be edited
  */
 export const isEditable = (contentType, filename = '') => {
+  if (isCodeFile(contentType, filename)) {
+    return true;
+  }
+  
+  // Check if it's an Office document (editable with OnlyOffice)
   if (!contentType) return false;
   
   const contentTypeLower = contentType.toLowerCase();
