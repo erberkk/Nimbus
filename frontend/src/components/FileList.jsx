@@ -26,6 +26,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { fileApi } from '../services/api';
+import { formatFileSize, formatDate } from '../utils/fileUtils';
 
 const MotionCard = motion.create(Card);
 
@@ -46,23 +47,6 @@ const getFileIcon = contentType => {
   return <InsertDriveFileIcon color="action" />;
 };
 
-const formatFileSize = bytes => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
-
-const formatDate = dateString => {
-  return new Date(dateString).toLocaleDateString('tr-TR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
 
 const FileList = ({ refreshTrigger }) => {
   const { t } = useTranslation();

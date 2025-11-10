@@ -125,6 +125,15 @@ export const fileApi = {
     return api.get(`/files/download-url?filename=${encodeURIComponent(filename)}`);
   },
 
+  // Get presigned URL for preview
+  getPreviewPresignedURL: (fileId, filename) => {
+    // Prefer file_id if available (for shared files), fallback to filename
+    if (fileId) {
+      return api.get(`/files/preview-url?file_id=${encodeURIComponent(fileId)}`);
+    }
+    return api.get(`/files/preview-url?filename=${encodeURIComponent(filename)}`);
+  },
+
   // List user files
   listFiles: () => {
     return api.get('/files/');

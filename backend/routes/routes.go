@@ -39,6 +39,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 		files.Get("/", handlers.ListUserFiles(cfg))
 		files.Delete("/:id", handlers.DeleteFile(cfg))
 		files.Get("/download-url", handlers.GetDownloadPresignedURL(cfg))
+		files.Get("/preview-url", handlers.GetPreviewPresignedURL(cfg)) // Supports ?file_id=xxx or ?filename=xxx
 		files.Post("/:id/move", handlers.MoveFile(cfg))
 	}
 

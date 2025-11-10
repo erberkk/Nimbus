@@ -20,6 +20,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import ShareIcon from '@mui/icons-material/Share';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import { isPreviewable, isAskableFile, formatFileSize, formatDate } from '../utils/fileUtils';
 
 const MotionCard = motion.create(Card);
 
@@ -37,23 +38,8 @@ const getFileIcon = contentType => {
   return <InsertDriveFileIcon sx={{ fontSize: 36, color: '#667eea' }} />;
 };
 
-const formatFileSize = bytes => {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-};
 
-const formatDate = dateString => {
-  return new Date(dateString).toLocaleDateString('tr-TR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-};
-
-const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus }) => {
+const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, onPreview }) => {
   const [anchorEl, setAnchorEl] = useState(null);
 
   const handleMenuOpen = event => {
@@ -63,6 +49,19 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus }) 
 
   const handleMenuClose = () => {
     setAnchorEl(null);
+  };
+
+  // Check if file is previewable using utility function
+  const fileIsPreviewable = isPreviewable(file?.content_type, file?.filename);
+
+  const handleCardClick = (e) => {
+    // Don't trigger preview if clicking on menu button
+    if (e.target.closest('button') || e.target.closest('[role="button"]')) {
+      return;
+    }
+    if (fileIsPreviewable && onPreview) {
+      onPreview(file);
+    }
   };
 
   const handleDownload = e => {
@@ -106,18 +105,15 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus }) 
   };
 
   // Word ve PDF dosyaları için Nimbus'a Sor seçeneğini göster
-  const isAskableFile = file.content_type?.includes('pdf') || 
-                       file.content_type?.includes('document') ||
-                       file.filename?.toLowerCase().endsWith('.doc') ||
-                       file.filename?.toLowerCase().endsWith('.docx') ||
-                       file.filename?.toLowerCase().endsWith('.pdf');
+  const fileIsAskable = isAskableFile(file?.content_type, file?.filename);
 
   return (
     <MotionCard
       whileHover={{ y: -4, boxShadow: '0px 8px 24px rgba(0,0,0,0.12)' }}
       whileTap={{ scale: 0.98 }}
+      onClick={handleCardClick}
       sx={{
-        cursor: 'pointer',
+        cursor: fileIsPreviewable ? 'pointer' : 'default',
         position: 'relative',
         transition: 'all 0.3s ease',
         height: '100%',
@@ -196,7 +192,7 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus }) 
           <DownloadIcon sx={{ mr: 1.5, fontSize: 20 }} />
           İndir
         </MenuItem>
-        {isAskableFile && (
+        {fileIsAskable && (
           <MenuItem onClick={handleAskNimbus} sx={{ color: '#667eea' }}>
             <SmartToyIcon sx={{ mr: 1.5, fontSize: 20 }} />
             Nimbus'a Sor

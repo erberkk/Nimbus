@@ -91,7 +91,7 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Typography variant="body2" color="text.secondary">
-{folder.item_count || 0} öğe
+            {folder.item_count || 0} öğe
           </Typography>
           {folder.isShared && (
             <>

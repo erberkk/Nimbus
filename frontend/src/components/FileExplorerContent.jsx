@@ -25,6 +25,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import FolderCard from './FolderCard';
 import FileCard from './FileCard';
 import NimbusChatPanel from './NimbusChatPanel';
+import { isPreviewable, formatFileSize, formatDate } from '../utils/fileUtils';
 
 const MotionBox = motion.create(Box);
 
@@ -40,9 +41,8 @@ const FileExplorerContent = ({
   onFileDelete,
   onShare,
   onMenuOpen,
-  formatFileSize,
-  formatDate,
   onUploadSuccess,
+  onPreview,
 }) => {
   // Chat panel state
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
@@ -370,6 +370,7 @@ const FileExplorerContent = ({
                             onDelete={onFileDelete}
                             onShare={file => onShare(file, 'file')}
                             onAskNimbus={handleAskNimbus}
+                            onPreview={onPreview}
                           />
                         </MotionBox>
                       </Grid>
@@ -445,17 +446,31 @@ const FileExplorerContent = ({
                   ))}
 
                   {/* Files */}
-                  {fileExplorer.files.map(file => (
-                    <TableRow key={file.id} hover>
-                      <TableCell padding="checkbox">
-                        <Checkbox />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <InsertDriveFileIcon />
-                          <Typography variant="body2">{file.filename}</Typography>
-                        </Box>
-                      </TableCell>
+                  {fileExplorer.files.map(file => {
+                    const fileIsPreviewable = isPreviewable(file?.content_type, file?.filename);
+
+                    return (
+                      <TableRow 
+                        key={file.id} 
+                        hover 
+                        onClick={() => {
+                          if (fileIsPreviewable && onPreview) {
+                            onPreview(file);
+                          }
+                        }}
+                        sx={{
+                          cursor: fileIsPreviewable ? 'pointer' : 'default',
+                        }}
+                      >
+                        <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox />
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <InsertDriveFileIcon />
+                            <Typography variant="body2">{file.filename}</Typography>
+                          </Box>
+                        </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
                           {file.owner?.name || 'Bilinmiyor'}
@@ -471,16 +486,20 @@ const FileExplorerContent = ({
                           {formatDate(file.updated_at)}
                         </Typography>
                       </TableCell>
-                      <TableCell padding="checkbox">
-                        <IconButton
-                          size="small"
-                          onClick={(e) => onMenuOpen(e, { ...file, type: 'file' })}
-                        >
-                          <MoreVertIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onMenuOpen(e, { ...file, type: 'file' });
+                            }}
+                          >
+                            <MoreVertIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>

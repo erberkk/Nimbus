@@ -263,28 +263,28 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
       <Box sx={{ px: 2, py: 1.5, mt: 'auto', mb: 1, flexShrink: 0 }}>
         <Divider sx={{ mb: 1.5, borderColor: 'rgba(255,255,255,0.24)' }} />
         <Box sx={{ bgcolor: 'white', borderRadius: 2, p: 1.25 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
-            <CloudQueueIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 1 }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
+          <CloudQueueIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 1 }} />
             <Typography variant="body2" color="text.secondary" fontWeight={600} fontSize="0.8rem">
-              {t('sidebar.storage') || 'Storage'}
-            </Typography>
-          </Box>
-          <LinearProgress
-            variant="determinate"
-            value={storageInfo.percent}
-            sx={{
-              height: 6,
-              borderRadius: 4,
-              bgcolor: 'grey.200',
-              '& .MuiLinearProgress-bar': {
-                borderRadius: 4,
-                backgroundColor: '#FBBF24',
-              },
-            }}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontSize: '0.7rem' }}>
-            15 GB {t('sidebar.of') || 'of'} {storageInfo.usage} {t('sidebar.used') || 'used'}
+            {t('sidebar.storage') || 'Storage'}
           </Typography>
+        </Box>
+        <LinearProgress
+          variant="determinate"
+          value={storageInfo.percent}
+          sx={{
+            height: 6,
+            borderRadius: 4,
+            bgcolor: 'grey.200',
+            '& .MuiLinearProgress-bar': {
+              borderRadius: 4,
+                backgroundColor: '#FBBF24',
+            },
+          }}
+        />
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontSize: '0.7rem' }}>
+          15 GB {t('sidebar.of') || 'of'} {storageInfo.usage} {t('sidebar.used') || 'used'}
+        </Typography>
         </Box>
       </Box>
     </Box>

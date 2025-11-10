@@ -111,9 +111,7 @@ func GetDownloadPresignedURL(cfg *config.Config) fiber.Handler {
 
 		filename := c.Query("filename")
 		if filename == "" {
-			return c.Status(400).JSON(fiber.Map{
-				"error": "filename parametresi gerekli",
-			})
+			return middleware.BadRequestResponse(c, "filename parametresi gerekli")
 		}
 
 		// 1 saatlik presigned URL oluştur
@@ -133,6 +131,76 @@ func GetDownloadPresignedURL(cfg *config.Config) fiber.Handler {
 			"presigned_url": presignedURL,
 			"filename":      filename,
 			"expires_in":    3600, // saniye cinsinden
+		})
+	}
+}
+
+// Preview için presigned URL al (inline görüntüleme için)
+func GetPreviewPresignedURL(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return middleware.BadRequestResponse(c, err.Error())
+		}
+
+		fileID := c.Query("file_id")
+		if fileID == "" {
+			// Fallback: use filename if file_id not provided (for backward compatibility)
+			filename := c.Query("filename")
+			if filename == "" {
+				return middleware.BadRequestResponse(c, "file_id veya filename parametresi gerekli")
+			}
+
+			// For own files, use current user's ID
+			presignedURL, err := services.MinioService.GenerateDownloadPresignedURL(
+				userID,
+				filename,
+				time.Hour,
+			)
+			if err != nil {
+				log.Printf("Preview presigned URL oluşturma hatası: %v", err)
+				return middleware.InternalServerErrorResponse(c, "Preview URL oluşturulamadı")
+			}
+
+			return c.JSON(fiber.Map{
+				"presigned_url": presignedURL,
+				"filename":      filename,
+				"expires_in":    3600,
+			})
+		}
+
+		// Get file from MongoDB
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			log.Printf("Dosya bulunamadı: %v", err)
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Dosya bulunamadı",
+			})
+		}
+
+		// Check access using helper function
+		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
+		if err != nil || !hasAccess {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Bu dosyaya erişim yetkiniz yok",
+			})
+		}
+
+		// Use file owner's UserID to generate presigned URL (file is stored in owner's folder)
+		presignedURL, err := services.MinioService.GenerateDownloadPresignedURL(
+			file.UserID,
+			file.Filename,
+			time.Hour,
+		)
+		if err != nil {
+			log.Printf("Preview presigned URL oluşturma hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Preview URL oluşturulamadı")
+		}
+
+		return c.JSON(fiber.Map{
+			"presigned_url": presignedURL,
+			"filename":      file.Filename,
+			"expires_in":    3600,
 		})
 	}
 }

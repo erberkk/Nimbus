@@ -2,6 +2,7 @@ import React from 'react';
 import CreateFolderDialog from './CreateFolderDialog';
 import FileUpload from './FileUpload';
 import ShareDialog from './ShareDialog';
+import FilePreviewDialog from './FilePreviewDialog';
 
 const FileExplorerDialogs = ({
   dialogs,
@@ -9,6 +10,7 @@ const FileExplorerDialogs = ({
   navigation,
   user,
   onCreateFolder,
+  onDownloadFile,
 }) => {
   return (
     <>
@@ -37,6 +39,14 @@ const FileExplorerDialogs = ({
         onClose={dialogs.closeShareDialog}
         resource={dialogs.shareResource}
         resourceType={dialogs.shareResourceType}
+      />
+
+      {/* File Preview Dialog */}
+      <FilePreviewDialog
+        open={dialogs.previewDialogOpen}
+        onClose={dialogs.closePreviewDialog}
+        file={dialogs.previewFile}
+        onDownload={onDownloadFile}
       />
     </>
   );

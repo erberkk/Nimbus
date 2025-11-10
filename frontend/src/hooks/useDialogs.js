@@ -10,6 +10,8 @@ export const useDialogs = () => {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareResource, setShareResource] = useState(null);
   const [shareResourceType, setShareResourceType] = useState(null);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
 
   // Dialog control functions
   const openCreateFolder = useCallback(() => {
@@ -40,6 +42,16 @@ export const useDialogs = () => {
     setShareResourceType(null);
   }, []);
 
+  const openPreviewDialog = useCallback((file) => {
+    setPreviewFile(file);
+    setPreviewDialogOpen(true);
+  }, []);
+
+  const closePreviewDialog = useCallback(() => {
+    setPreviewDialogOpen(false);
+    setPreviewFile(null);
+  }, []);
+
   return {
     // Dialog states
     createFolderOpen,
@@ -47,6 +59,8 @@ export const useDialogs = () => {
     shareDialogOpen,
     shareResource,
     shareResourceType,
+    previewDialogOpen,
+    previewFile,
     
     // Dialog control functions
     openCreateFolder,
@@ -54,6 +68,8 @@ export const useDialogs = () => {
     openFileUpload,
     closeFileUpload,
     openShareDialog,
-    closeShareDialog
+    closeShareDialog,
+    openPreviewDialog,
+    closePreviewDialog
   };
 };

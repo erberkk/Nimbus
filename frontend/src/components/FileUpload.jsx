@@ -20,6 +20,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import { fileApi } from '../services/api';
+import { formatFileSize } from '../utils/fileUtils';
 
 const MotionBox = motion.create(Box);
 
@@ -221,7 +222,7 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
         handleMultipleFiles(files);
       } else {
         // Tek dosya yükleme modu
-        handleFile(e.target.files[0]);
+      handleFile(e.target.files[0]);
       }
     }
   };
@@ -231,14 +232,6 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
     setSuccess('');
     setUploadedFile(null);
     setProgress(0);
-  };
-
-  const formatFileSize = bytes => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (

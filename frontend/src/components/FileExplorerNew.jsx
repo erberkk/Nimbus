@@ -79,26 +79,6 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
     dialogs.openShareDialog(resource, type);
   };
 
-  const formatFileSize = bytes => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  const formatDate = dateString => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now - date;
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) return 'Bugün';
-    if (days === 1) return 'Dün';
-    if (days < 7) return `${days} gün önce`;
-    return date.toLocaleDateString('tr-TR');
-  };
-
   return (
     <Box sx={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <FileExplorerHeader
@@ -124,9 +104,8 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         onFileDelete={handleDeleteFile}
         onShare={handleShare}
         onMenuOpen={handleMenuOpen}
-        formatFileSize={formatFileSize}
-        formatDate={formatDate}
         onUploadSuccess={handleUploadSuccess}
+        onPreview={dialogs.openPreviewDialog}
       />
 
       <FileExplorerContextMenu
@@ -146,6 +125,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         navigation={navigation}
         user={user}
         onCreateFolder={handleCreateFolder}
+        onDownloadFile={handleDownloadFile}
       />
     </Box>
   );
