@@ -148,6 +148,11 @@ export const fileApi = {
   moveFile: (fileId, folderId) => {
     return api.post(`/files/${fileId}/move`, { folder_id: folderId });
   },
+
+  // Get OnlyOffice editor config
+  getOnlyOfficeConfig: (fileId, mode = 'edit') => {
+    return api.get(`/files/onlyoffice-config?file_id=${encodeURIComponent(fileId)}&mode=${mode}`);
+  },
 };
 
 // Folder specific methods

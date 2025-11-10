@@ -20,10 +20,9 @@ import AudioFileIcon from '@mui/icons-material/AudioFile';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
 import DescriptionIcon from '@mui/icons-material/Description';
 import TableChartIcon from '@mui/icons-material/TableChart';
-import mammoth from 'mammoth';
-import * as XLSX from 'xlsx';
 import { fileApi } from '../services/api';
-import { getFileType, isPreviewable as checkIsPreviewable, formatFileSize } from '../utils/fileUtils';
+import { getFileType, isPreviewable as checkIsPreviewable, formatFileSize, isEditable, formatContentType } from '../utils/fileUtils';
+import OnlyOfficeEditor from './OnlyOfficeEditor';
 
 const MotionDialog = motion.create(Dialog);
 
@@ -32,11 +31,10 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Get file type using utility function
   const fileType = file ? getFileType(file.content_type, file.filename) : 'unknown';
   const fileIsPreviewable = file ? checkIsPreviewable(file.content_type, file.filename) : false;
+  const fileIsEditable = file ? isEditable(file.content_type, file.filename) : false;
 
-  // Load preview URL when dialog opens
   useEffect(() => {
     if (!open || !file) {
       setPreviewUrl(null);
@@ -45,44 +43,37 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
       return;
     }
 
-    if (fileIsPreviewable) {
-      if (fileType !== 'word-doc') {
-        loadPreviewUrl(fileType);
-      } else {
-        // For word-doc, just set loading to false so the message can be shown
-        setLoading(false);
-      }
+    if (fileIsEditable) {
+      setLoading(false);
+      return;
+    }
+
+    if (fileIsPreviewable && fileType !== 'word-doc') {
+      loadPreviewUrl();
+    } else if (fileType === 'word-doc') {
+      setLoading(false);
     }
 
     return () => {
-      // Cleanup: revoke object URL if created
       if (previewUrl && previewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(previewUrl);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, file]);
+  }, [open, file, fileIsEditable, fileIsPreviewable]);
 
-  const loadPreviewUrl = async (currentFileType) => {
+  const loadPreviewUrl = async () => {
     if (!file) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      // Use file.id if available (for shared files), otherwise use filename
       const response = await fileApi.getPreviewPresignedURL(file.id, file.filename);
       const presignedUrl = response.presigned_url;
 
-      // For Word/Excel, fetch and convert
-      if (currentFileType === 'word-docx' || currentFileType === 'excel') {
-        await loadAndConvertFile(presignedUrl, currentFileType);
-      } else {
-        // For other types, just set the URL
-        setPreviewUrl(presignedUrl);
-      }
+      setPreviewUrl(presignedUrl);
     } catch (err) {
-      console.error('Preview URL yükleme hatası:', err);
       setError('Dosya önizlemesi yüklenemedi');
       window.toast?.error('Dosya önizlemesi yüklenemedi');
     } finally {
@@ -90,33 +81,6 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
     }
   };
 
-  const loadAndConvertFile = async (url, currentFileType) => {
-    try {
-      // Fetch file as array buffer
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Dosya yüklenemedi');
-      const arrayBuffer = await response.arrayBuffer();
-
-      if (currentFileType === 'word-docx') {
-        // Convert Word to HTML
-        const result = await mammoth.convertToHtml({ arrayBuffer });
-        setPreviewUrl(result.value); // Store HTML content
-        if (result.messages.length > 0) {
-          console.warn('Word conversion warnings:', result.messages);
-        }
-      } else if (currentFileType === 'excel') {
-        // Convert Excel to JSON and render as table
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const html = XLSX.utils.sheet_to_html(firstSheet);
-        setPreviewUrl(html);
-      }
-    } catch (err) {
-      console.error('Dosya dönüştürme hatası:', err);
-      setError('Dosya önizleme için dönüştürülemedi');
-      throw err;
-    }
-  };
 
   const handleDownload = () => {
     if (onDownload && file) {
@@ -287,85 +251,25 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
         );
 
       case 'word-docx':
-        return (
-          <Box
-            sx={{
-              width: '100%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              p: 3,
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              bgcolor: 'background.paper',
-            }}
-          >
-            <Box
-              component="div"
-              dangerouslySetInnerHTML={{ __html: previewUrl }}
-              sx={{
-                '& p': {
-                  margin: '0.5em 0',
-                },
-                '& ul, & ol': {
-                  margin: '0.5em 0',
-                  paddingLeft: '1.5em',
-                },
-                '& table': {
-                  borderCollapse: 'collapse',
-                  width: '100%',
-                  margin: '1em 0',
-                },
-                '& td, & th': {
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  padding: '0.5em',
-                },
-              }}
-            />
-          </Box>
-        );
-
       case 'excel':
+      case 'powerpoint':
+        // These file types now use OnlyOffice preview, so this shouldn't be reached
+        // But keep as fallback
         return (
           <Box
             sx={{
-              width: '100%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              p: 2,
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '400px',
+              gap: 2,
+              p: 3,
             }}
           >
-            <Box
-              component="div"
-              dangerouslySetInnerHTML={{ __html: previewUrl }}
-              sx={{
-                '& table': {
-                  borderCollapse: 'collapse',
-                  width: '100%',
-                },
-                '& td, & th': {
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  padding: 1,
-                  textAlign: 'left',
-                  fontSize: '0.875rem',
-                },
-                '& th': {
-                  bgcolor: 'grey.100',
-                  fontWeight: 600,
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 1,
-                },
-                '& tr:nth-of-type(even)': {
-                  bgcolor: 'grey.50',
-                },
-              }}
-            />
+            <Typography variant="body2" color="text.secondary">
+              Bu dosya türü için OnlyOffice önizleme kullanılmalı
+            </Typography>
           </Box>
         );
 
@@ -440,6 +344,18 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
 
   if (!file) return null;
 
+  if (fileIsEditable) {
+    return (
+      <OnlyOfficeEditor
+        open={open}
+        onClose={onClose}
+        file={file}
+        mode="view"
+        onSave={null}
+      />
+    );
+  }
+
   return (
     <MotionDialog
       open={open}
@@ -469,7 +385,7 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload }) => {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
                 <Chip
-                  label={file.content_type?.split('/')[1] || 'dosya'}
+                  label={formatContentType(file.content_type, file.filename)}
                   size="small"
                   variant="outlined"
                 />

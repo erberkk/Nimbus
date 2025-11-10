@@ -106,6 +106,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         onMenuOpen={handleMenuOpen}
         onUploadSuccess={handleUploadSuccess}
         onPreview={dialogs.openPreviewDialog}
+        onEdit={dialogs.openEditDialog}
       />
 
       <FileExplorerContextMenu

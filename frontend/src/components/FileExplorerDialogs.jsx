@@ -3,6 +3,7 @@ import CreateFolderDialog from './CreateFolderDialog';
 import FileUpload from './FileUpload';
 import ShareDialog from './ShareDialog';
 import FilePreviewDialog from './FilePreviewDialog';
+import OnlyOfficeEditor from './OnlyOfficeEditor';
 
 const FileExplorerDialogs = ({
   dialogs,
@@ -47,6 +48,17 @@ const FileExplorerDialogs = ({
         onClose={dialogs.closePreviewDialog}
         file={dialogs.previewFile}
         onDownload={onDownloadFile}
+      />
+
+      {/* OnlyOffice Editor Dialog */}
+      <OnlyOfficeEditor
+        open={dialogs.editDialogOpen}
+        onClose={dialogs.closeEditDialog}
+        file={dialogs.editFile}
+        onSave={() => {
+          // Trigger refresh after save
+          uiState.triggerRefresh();
+        }}
       />
     </>
   );

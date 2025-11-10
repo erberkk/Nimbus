@@ -20,7 +20,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import ShareIcon from '@mui/icons-material/Share';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
-import { isPreviewable, isAskableFile, formatFileSize, formatDate } from '../utils/fileUtils';
+import EditIcon from '@mui/icons-material/Edit';
+import InfoIcon from '@mui/icons-material/Info';
+import { isPreviewable, isAskableFile, isEditable, formatFileSize, formatDate, formatContentType } from '../utils/fileUtils';
 
 const MotionCard = motion.create(Card);
 
@@ -39,7 +41,7 @@ const getFileIcon = contentType => {
 };
 
 
-const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, onPreview }) => {
+const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, onPreview, onEdit, onInfo }) => {
   const [anchorEl, setAnchorEl] = useState(null);
 
   const handleMenuOpen = event => {
@@ -104,8 +106,27 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, on
     }
   };
 
+  const handleEdit = e => {
+    e.stopPropagation();
+    handleMenuClose();
+    if (onEdit) {
+      onEdit(file);
+    }
+  };
+
+  const handleInfo = e => {
+    e.stopPropagation();
+    handleMenuClose();
+    if (onInfo) {
+      onInfo(file);
+    }
+  };
+
   // Word ve PDF dosyaları için Nimbus'a Sor seçeneğini göster
   const fileIsAskable = isAskableFile(file?.content_type, file?.filename);
+  
+  // Word, Excel, PowerPoint dosyaları için Düzenle seçeneğini göster
+  const fileIsEditable = isEditable(file?.content_type, file?.filename);
 
   return (
     <MotionCard
@@ -159,7 +180,7 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, on
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Chip
-            label={file.content_type?.split('/')[1] || 'dosya'}
+            label={formatContentType(file.content_type, file.filename)}
             size="small"
             variant="outlined"
             sx={{ fontSize: '0.7rem' }}
@@ -188,10 +209,20 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, on
         onClose={handleMenuClose}
         onClick={e => e.stopPropagation()}
       >
+        <MenuItem onClick={handleInfo}>
+          <InfoIcon sx={{ mr: 1.5, fontSize: 20 }} />
+          Bilgi
+        </MenuItem>
         <MenuItem onClick={handleDownload}>
           <DownloadIcon sx={{ mr: 1.5, fontSize: 20 }} />
           İndir
         </MenuItem>
+        {fileIsEditable && (
+          <MenuItem onClick={handleEdit} sx={{ color: '#667eea' }}>
+            <EditIcon sx={{ mr: 1.5, fontSize: 20 }} />
+            Düzenle
+          </MenuItem>
+        )}
         {fileIsAskable && (
           <MenuItem onClick={handleAskNimbus} sx={{ color: '#667eea' }}>
             <SmartToyIcon sx={{ mr: 1.5, fontSize: 20 }} />

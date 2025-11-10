@@ -12,6 +12,8 @@ export const useDialogs = () => {
   const [shareResourceType, setShareResourceType] = useState(null);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editFile, setEditFile] = useState(null);
 
   // Dialog control functions
   const openCreateFolder = useCallback(() => {
@@ -52,6 +54,16 @@ export const useDialogs = () => {
     setPreviewFile(null);
   }, []);
 
+  const openEditDialog = useCallback((file) => {
+    setEditFile(file);
+    setEditDialogOpen(true);
+  }, []);
+
+  const closeEditDialog = useCallback(() => {
+    setEditDialogOpen(false);
+    setEditFile(null);
+  }, []);
+
   return {
     // Dialog states
     createFolderOpen,
@@ -61,6 +73,8 @@ export const useDialogs = () => {
     shareResourceType,
     previewDialogOpen,
     previewFile,
+    editDialogOpen,
+    editFile,
     
     // Dialog control functions
     openCreateFolder,
@@ -70,6 +84,8 @@ export const useDialogs = () => {
     openShareDialog,
     closeShareDialog,
     openPreviewDialog,
-    closePreviewDialog
+    closePreviewDialog,
+    openEditDialog,
+    closeEditDialog
   };
 };

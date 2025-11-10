@@ -1,15 +1,27 @@
 package handlers
 
 import (
+	"bytes"
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"nimbus-backend/config"
 	"nimbus-backend/helpers"
 	"nimbus-backend/middleware"
 	"nimbus-backend/models"
 	"nimbus-backend/services"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/minio/minio-go/v7"
 )
 
 // Upload için presigned URL al
@@ -291,5 +303,394 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 		return c.JSON(fiber.Map{
 			"message": "Dosya başarıyla silindi",
 		})
+	}
+}
+
+// OnlyOfficeFileMapping represents mapping from content type to OnlyOffice types
+type OnlyOfficeFileMapping struct {
+	FileType     string
+	DocumentType string
+}
+
+// getOnlyOfficeMapping - Content type'dan OnlyOffice mapping'e çevir
+func getOnlyOfficeMapping(contentType string) OnlyOfficeFileMapping {
+	contentTypeLower := strings.ToLower(contentType)
+
+	if strings.Contains(contentTypeLower, "wordprocessingml.document") ||
+		contentTypeLower == "application/msword" {
+		return OnlyOfficeFileMapping{
+			FileType:     "docx",
+			DocumentType: "text",
+		}
+	}
+
+	if strings.Contains(contentTypeLower, "spreadsheetml.sheet") ||
+		contentTypeLower == "application/vnd.ms-excel" {
+		return OnlyOfficeFileMapping{
+			FileType:     "xlsx",
+			DocumentType: "spreadsheet",
+		}
+	}
+
+	if strings.Contains(contentTypeLower, "presentationml.presentation") ||
+		contentTypeLower == "application/vnd.ms-powerpoint" {
+		return OnlyOfficeFileMapping{
+			FileType:     "pptx",
+			DocumentType: "presentation",
+		}
+	}
+
+	if strings.Contains(contentTypeLower, "pdf") {
+		return OnlyOfficeFileMapping{
+			FileType:     "pdf",
+			DocumentType: "text",
+		}
+	}
+
+	return OnlyOfficeFileMapping{
+		FileType:     "docx",
+		DocumentType: "text",
+	}
+}
+
+func getOnlyOfficeFileType(contentType string) string {
+	return getOnlyOfficeMapping(contentType).FileType
+}
+
+func getOnlyOfficeDocumentType(contentType string) string {
+	return getOnlyOfficeMapping(contentType).DocumentType
+}
+
+func generateDocumentKey(fileID string) string {
+	return fmt.Sprintf("%s_%d", fileID, time.Now().Unix())
+}
+
+// signOnlyOfficeConfig - OnlyOffice config'i JWT ile imzala
+func signOnlyOfficeConfig(config map[string]interface{}, secret string) (string, error) {
+	configJSON, err := json.Marshal(config)
+	if err != nil {
+		return "", fmt.Errorf("config marshal hatası: %v", err)
+	}
+
+	header := map[string]string{
+		"alg": "HS256",
+		"typ": "JWT",
+	}
+	headerJSON, _ := json.Marshal(header)
+	headerEncoded := base64.RawURLEncoding.EncodeToString(headerJSON)
+
+	payloadEncoded := base64.RawURLEncoding.EncodeToString(configJSON)
+
+	signatureInput := headerEncoded + "." + payloadEncoded
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(signatureInput))
+	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+
+	token := signatureInput + "." + signature
+
+	return token, nil
+}
+
+func GetOnlyOfficeConfig(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return middleware.BadRequestResponse(c, err.Error())
+		}
+
+		fileID := c.Query("file_id")
+		if fileID == "" {
+			return middleware.BadRequestResponse(c, "file_id parametresi gerekli")
+		}
+
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			log.Printf("Dosya bulunamadı: %v", err)
+			return middleware.NotFoundResponse(c, "Dosya bulunamadı")
+		}
+
+		hasWriteAccess, err := helpers.CheckFileAccessWithOwnerFallback(userID, fileID, file.UserID, helpers.AccessLevelWrite)
+		if err != nil {
+			log.Printf("Access check hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Erişim kontrolü yapılamadı")
+		}
+		if !hasWriteAccess {
+			return middleware.ForbiddenResponse(c, "Bu dosyayı düzenleme yetkiniz yok")
+		}
+
+		user, err := services.UserServiceInstance.GetUserByID(userID)
+		userName := userID
+		if err == nil && user != nil {
+			userName = user.Name
+		} else {
+			log.Printf("Kullanıcı bulunamadı: %v", err)
+		}
+
+		docToken, err := generateOnlyOfficeDocumentToken(fileID, userID, cfg.JWTSecret, time.Hour)
+		if err != nil {
+			log.Printf("Document token oluşturma hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Doküman token'ı oluşturulamadı")
+		}
+
+		docURL := fmt.Sprintf("%s/api/v1/files/onlyoffice-document?file_id=%s&token=%s",
+			cfg.BackendExternalURL, fileID, docToken)
+
+		docKey := generateDocumentKey(fileID)
+
+		mode := c.Query("mode", "edit")
+		if mode != "edit" && mode != "view" {
+			mode = "edit"
+		}
+
+		var callbackURL string
+		if mode == "edit" {
+			callbackURL = fmt.Sprintf("%s/api/v1/files/onlyoffice-callback", cfg.BackendExternalURL)
+		}
+
+		editorConfig := map[string]interface{}{
+			"mode": mode,
+			"user": map[string]interface{}{
+				"id":   userID,
+				"name": userName,
+			},
+		}
+
+		if mode == "edit" && callbackURL != "" {
+			editorConfig["callbackUrl"] = callbackURL
+		}
+
+		config := map[string]interface{}{
+			"document": map[string]interface{}{
+				"fileType": getOnlyOfficeFileType(file.ContentType),
+				"key":      docKey,
+				"title":    file.Filename,
+				"url":      docURL,
+			},
+			"documentType": getOnlyOfficeDocumentType(file.ContentType),
+			"editorConfig": editorConfig,
+			"type":         "desktop",
+		}
+
+		if cfg.OnlyOfficeJWTSecret != "" {
+			token, err := signOnlyOfficeConfig(config, cfg.OnlyOfficeJWTSecret)
+			if err != nil {
+				log.Printf("JWT token oluşturma hatası: %v", err)
+			} else {
+				config["token"] = token
+			}
+		}
+
+		return c.JSON(config)
+	}
+}
+
+func OnlyOfficeCallback(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		var req struct {
+			Key        string `json:"key"`
+			Status     int    `json:"status"`
+			URL        string `json:"url,omitempty"`
+			ChangesURL string `json:"changesurl,omitempty"`
+			History    struct {
+				ServerVersion string `json:"serverVersion"`
+				Changes       []struct {
+					Created string `json:"created"`
+					User    struct {
+						ID   string `json:"id"`
+						Name string `json:"name"`
+					} `json:"user"`
+				} `json:"changes"`
+			} `json:"history,omitempty"`
+			Users   []string `json:"users,omitempty"`
+			Actions []struct {
+				Type   int    `json:"type"`
+				UserID string `json:"userid"`
+			} `json:"actions,omitempty"`
+			Forcesavetype int `json:"forcesavetype,omitempty"`
+		}
+
+		if err := c.BodyParser(&req); err != nil {
+			log.Printf("Callback parse hatası: %v", err)
+			return c.Status(400).JSON(fiber.Map{"error": 0})
+		}
+
+		if req.Status == 2 || req.Status == 6 {
+			if req.URL == "" {
+				log.Printf("Callback URL boş: key=%s, status=%d", req.Key, req.Status)
+				return c.JSON(fiber.Map{"error": 0})
+			}
+
+			keyParts := strings.Split(req.Key, "_")
+			if len(keyParts) == 0 {
+				log.Printf("Geçersiz key formatı: %s", req.Key)
+				return c.JSON(fiber.Map{"error": 0})
+			}
+			fileID := keyParts[0]
+
+			file, err := services.FileServiceInstance.GetFileByID(fileID)
+			if err != nil {
+				log.Printf("Dosya bulunamadı: %v", err)
+				return c.JSON(fiber.Map{"error": 0})
+			}
+
+			resp, err := http.Get(req.URL)
+			if err != nil {
+				log.Printf("OnlyOffice'den dosya indirme hatası: %v", err)
+				return c.JSON(fiber.Map{"error": 0})
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				log.Printf("OnlyOffice'den dosya indirme hatası: status=%d", resp.StatusCode)
+				return c.JSON(fiber.Map{"error": 0})
+			}
+
+			fileContent, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Printf("Dosya okuma hatası: %v", err)
+				return c.JSON(fiber.Map{"error": 0})
+			}
+
+			objectName := file.MinioPath
+			ctx := context.Background()
+
+			_, err = services.MinioService.Client.PutObject(
+				ctx,
+				"user-files",
+				objectName,
+				bytes.NewReader(fileContent),
+				int64(len(fileContent)),
+				minio.PutObjectOptions{
+					ContentType: file.ContentType,
+				},
+			)
+			if err != nil {
+				log.Printf("MinIO'ya yükleme hatası: %v", err)
+				return c.JSON(fiber.Map{"error": 0})
+			}
+
+			// Update file metadata (size, updated_at)
+			updates := map[string]interface{}{
+				"size": int64(len(fileContent)),
+			}
+			if err := services.FileServiceInstance.UpdateFileRecord(fileID, updates); err != nil {
+				log.Printf("Dosya metadata güncelleme hatası: %v", err)
+			}
+
+			log.Printf("Dosya başarıyla kaydedildi: fileID=%s, size=%d", fileID, len(fileContent))
+		}
+
+		return c.JSON(fiber.Map{"error": 0})
+	}
+}
+
+func generateOnlyOfficeDocumentToken(fileID, userID, secret string, expiry time.Duration) (string, error) {
+	claims := jwt.MapClaims{
+		"file_id": fileID,
+		"user_id": userID,
+		"exp":     time.Now().Add(expiry).Unix(),
+		"iat":     time.Now().Unix(),
+		"type":    "onlyoffice_document",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}
+
+func validateOnlyOfficeDocumentToken(tokenString, secret string) (string, string, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("beklenmeyen signing method: %v", token.Header["alg"])
+		}
+		return []byte(secret), nil
+	})
+
+	if err != nil {
+		return "", "", err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		if tokenType, ok := claims["type"].(string); !ok || tokenType != "onlyoffice_document" {
+			return "", "", fmt.Errorf("geçersiz token tipi")
+		}
+
+		fileID, ok1 := claims["file_id"].(string)
+		userID, ok2 := claims["user_id"].(string)
+
+		if !ok1 || !ok2 {
+			return "", "", fmt.Errorf("token'da file_id veya user_id bulunamadı")
+		}
+
+		return fileID, userID, nil
+	}
+
+	return "", "", fmt.Errorf("geçersiz token")
+}
+
+func GetOnlyOfficeDocument(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		fileID := c.Query("file_id")
+		tokenStr := c.Query("token")
+
+		if fileID == "" || tokenStr == "" {
+			return middleware.BadRequestResponse(c, "file_id ve token parametreleri gerekli")
+		}
+
+		validatedFileID, userID, err := validateOnlyOfficeDocumentToken(tokenStr, cfg.JWTSecret)
+		if err != nil {
+			log.Printf("Token validation hatası: %v", err)
+			return middleware.UnauthorizedResponse(c, "Geçersiz veya süresi dolmuş token")
+		}
+
+		if validatedFileID != fileID {
+			return middleware.ForbiddenResponse(c, "Token ve file_id eşleşmiyor")
+		}
+
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			log.Printf("Dosya bulunamadı: %v", err)
+			return middleware.NotFoundResponse(c, "Dosya bulunamadı")
+		}
+
+		hasReadAccess, err := helpers.CheckFileAccessWithOwnerFallback(userID, fileID, file.UserID, helpers.AccessLevelRead)
+		if err != nil {
+			log.Printf("Access check hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Erişim kontrolü yapılamadı")
+		}
+		if !hasReadAccess {
+			return middleware.ForbiddenResponse(c, "Bu dosyaya erişim yetkiniz yok")
+		}
+
+		objectName := file.MinioPath
+		if objectName == "" {
+			objectName = services.MinioService.GetUserFilePath(file.UserID, file.Filename)
+		}
+		ctx := context.Background()
+
+		objInfo, err := services.MinioService.Client.StatObject(ctx, "user-files", objectName, minio.StatObjectOptions{})
+		if err != nil {
+			log.Printf("Dosya MinIO'da bulunamadı: %v (objectName: %s)", err, objectName)
+			return middleware.NotFoundResponse(c, "Dosya bulunamadı")
+		}
+
+		object, err := services.MinioService.Client.GetObject(ctx, "user-files", objectName, minio.GetObjectOptions{})
+		if err != nil {
+			log.Printf("MinIO'dan dosya okuma hatası: %v", err)
+			return middleware.InternalServerErrorResponse(c, "Dosya okunamadı")
+		}
+		defer object.Close()
+
+		c.Set("Content-Type", file.ContentType)
+		c.Set("Content-Length", fmt.Sprintf("%d", objInfo.Size))
+		c.Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, file.Filename))
+		c.Set("Cache-Control", "private, max-age=3600")
+
+		_, err = io.Copy(c.Response().BodyWriter(), object)
+		if err != nil {
+			log.Printf("Dosya stream hatası: %v", err)
+			return err
+		}
+
+		return nil
 	}
 }

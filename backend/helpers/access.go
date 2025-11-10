@@ -196,6 +196,24 @@ func CanUserShare(userID string, resourceType string, resourceID string) (bool, 
 	return CanUserAccess(userID, resourceType, resourceID, AccessLevelWrite)
 }
 
+// CheckFileAccessWithOwnerFallback checks file access with owner fallback
+// Returns true if user has required access level OR is the file owner
+func CheckFileAccessWithOwnerFallback(userID, fileID, fileOwnerID string, requiredLevel AccessLevel) (bool, error) {
+	hasAccess, err := CanUserAccess(userID, "file", fileID, requiredLevel)
+	if err != nil {
+		return false, err
+	}
+	
+	// If user has access, return true
+	if hasAccess {
+		return true, nil
+	}
+	
+	// If user doesn't have access, check if they are the owner
+	// Owner always has full access
+	return fileOwnerID == userID, nil
+}
+
 // GetUserAccessLevel returns the access level of a user for a resource
 func GetUserAccessLevel(userID string, resourceType string, resourceID string) (AccessLevel, error) {
 	resourceOID, err := primitive.ObjectIDFromHex(resourceID)

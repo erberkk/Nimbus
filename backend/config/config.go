@@ -8,18 +8,23 @@ import (
 )
 
 type Config struct {
-	Port           string
-	MongoURI       string
-	MongoDB        string
-	JWTSecret      string
-	GoogleClientID string
-	GoogleSecret   string
-	GoogleRedirect string
-	FrontendURL    string
-	MinIOEndpoint  string
-	MinIOAccessKey string
-	MinIOSecretKey string
-	MinIOUseSSL    bool
+	Port                  string
+	MongoURI              string
+	MongoDB               string
+	JWTSecret             string
+	GoogleClientID        string
+	GoogleSecret          string
+	GoogleRedirect        string
+	FrontendURL           string
+	MinIOEndpoint         string
+	MinIOAccessKey        string
+	MinIOSecretKey        string
+	MinIOUseSSL           bool
+	OnlyOfficeServerURL   string
+	OnlyOfficeJWTSecret   string
+	BackendURL            string
+	MinIOExternalEndpoint string // For OnlyOffice to access MinIO from Docker
+	BackendExternalURL    string // For OnlyOffice to access backend from Docker
 }
 
 func Load() *Config {
@@ -28,18 +33,23 @@ func Load() *Config {
 		log.Println("⚠️ .env dosyası bulunamadı veya yüklenemedi")
 	}
 	cfg := &Config{
-		Port:           getEnv("PORT", "8080"),
-		MongoURI:       getEnv("MONGO_URI", "mongodb://localhost:27017"),
-		MongoDB:        getEnv("MONGO_DB", "nimbus"),
-		JWTSecret:      getEnv("JWT_SECRET", "your-secret-key"),
-		GoogleClientID: getEnv("GOOGLE_CLIENT_ID", ""),
-		GoogleSecret:   getEnv("GOOGLE_CLIENT_SECRET", ""),
-		GoogleRedirect: getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
-		FrontendURL:    getEnv("FRONTEND_URL", "http://localhost:5173"),
-		MinIOEndpoint:  getEnv("MINIO_ENDPOINT", "localhost:9000"),
-		MinIOAccessKey: getEnv("MINIO_ACCESS_KEY", "minioadmin"),
-		MinIOSecretKey: getEnv("MINIO_SECRET_KEY", "minioadmin"),
-		MinIOUseSSL:    getEnvAsBool("MINIO_USE_SSL", false),
+		Port:                  getEnv("PORT", "8080"),
+		MongoURI:              getEnv("MONGO_URI", "mongodb://localhost:27017"),
+		MongoDB:               getEnv("MONGO_DB", "nimbus"),
+		JWTSecret:             getEnv("JWT_SECRET", "your-secret-key"),
+		GoogleClientID:        getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleSecret:          getEnv("GOOGLE_CLIENT_SECRET", ""),
+		GoogleRedirect:        getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+		FrontendURL:           getEnv("FRONTEND_URL", "http://localhost:5173"),
+		MinIOEndpoint:         getEnv("MINIO_ENDPOINT", "localhost:9000"),
+		MinIOAccessKey:        getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+		MinIOSecretKey:        getEnv("MINIO_SECRET_KEY", "minioadmin"),
+		MinIOUseSSL:           getEnvAsBool("MINIO_USE_SSL", false),
+		OnlyOfficeServerURL:   getEnv("ONLYOFFICE_SERVER_URL", "http://localhost:5000"),
+		OnlyOfficeJWTSecret:   getEnv("ONLYOFFICE_JWT_SECRET", "your-secret-key"),
+		BackendURL:            getEnv("BACKEND_URL", "http://localhost:8080"),
+		MinIOExternalEndpoint: getEnv("MINIO_EXTERNAL_ENDPOINT", "host.docker.internal:9000"),
+		BackendExternalURL:    getEnv("BACKEND_EXTERNAL_URL", "http://host.docker.internal:8080"),
 	}
 
 	if cfg.GoogleClientID == "" || cfg.GoogleSecret == "" {

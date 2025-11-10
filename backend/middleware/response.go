@@ -39,6 +39,13 @@ func NotFoundResponse(c *fiber.Ctx, message string) error {
 	})
 }
 
+// ForbiddenResponse - Standardized forbidden response
+func ForbiddenResponse(c *fiber.Ctx, message string) error {
+	return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+		"error": message,
+	})
+}
+
 // InternalServerErrorResponse - Standardized internal server error response
 func InternalServerErrorResponse(c *fiber.Ctx, message string) error {
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

@@ -222,6 +222,41 @@ func (m *MinIOService) GenerateDownloadPresignedURL(userID, filename string, exp
 	return presignedURL.String(), nil
 }
 
+// Download için presigned URL oluştur (External endpoint ile - OnlyOffice gibi external servislere için)
+func (m *MinIOService) GenerateDownloadPresignedURLExternal(userID, filename string, expiry time.Duration, externalEndpoint string) (string, error) {
+	ctx := context.Background()
+
+	// Dosya path'i oluştur
+	objectName := m.GetUserFilePath(userID, filename)
+
+	// Dosya varlığını kontrol et
+	_, err := m.Client.StatObject(ctx, "user-files", objectName, minio.StatObjectOptions{})
+	if err != nil {
+		return "", fmt.Errorf("dosya bulunamadı: %v", err)
+	}
+
+	// Presigned GET URL oluştur
+	presignedURL, err := m.Client.PresignedGetObject(ctx, "user-files", objectName, expiry, nil)
+	if err != nil {
+		return "", fmt.Errorf("presigned URL oluşturma hatası: %v", err)
+	}
+
+	urlStr := presignedURL.String()
+
+	// If external endpoint is provided, replace the MinIO endpoint
+	if externalEndpoint != "" && m.Config.MinIOEndpoint != "" {
+		// Replace internal endpoint with external endpoint
+		internalEndpoint := m.Config.MinIOEndpoint
+		if m.Config.MinIOUseSSL {
+			urlStr = strings.Replace(urlStr, "https://"+internalEndpoint, "http://"+externalEndpoint, 1)
+		} else {
+			urlStr = strings.Replace(urlStr, "http://"+internalEndpoint, "http://"+externalEndpoint, 1)
+		}
+	}
+
+	return urlStr, nil
+}
+
 // Dosya bilgilerini al
 func (m *MinIOService) GetFileInfo(userID, filename string) (*minio.ObjectInfo, error) {
 	ctx := context.Background()

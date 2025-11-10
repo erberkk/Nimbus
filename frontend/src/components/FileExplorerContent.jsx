@@ -25,6 +25,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import FolderCard from './FolderCard';
 import FileCard from './FileCard';
 import NimbusChatPanel from './NimbusChatPanel';
+import FileInfoPanel from './FileInfoPanel';
 import { isPreviewable, formatFileSize, formatDate } from '../utils/fileUtils';
 
 const MotionBox = motion.create(Box);
@@ -43,10 +44,15 @@ const FileExplorerContent = ({
   onMenuOpen,
   onUploadSuccess,
   onPreview,
+  onEdit,
 }) => {
   // Chat panel state
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+
+  // File info panel state
+  const [infoPanelOpen, setInfoPanelOpen] = useState(false);
+  const [selectedFileForInfo, setSelectedFileForInfo] = useState(null);
 
   // Nimbus'a Sor fonksiyonu
   const handleAskNimbus = (file) => {
@@ -58,6 +64,18 @@ const FileExplorerContent = ({
   const handleCloseChatPanel = () => {
     setChatPanelOpen(false);
     setSelectedFile(null);
+  };
+
+  // File info panel açma
+  const handleFileInfo = (file) => {
+    setSelectedFileForInfo(file);
+    setInfoPanelOpen(true);
+  };
+
+  // File info panel kapatma
+  const handleCloseInfoPanel = () => {
+    setInfoPanelOpen(false);
+    setSelectedFileForInfo(null);
   };
 
   // Direkt dosya yükleme fonksiyonu
@@ -371,6 +389,8 @@ const FileExplorerContent = ({
                             onShare={file => onShare(file, 'file')}
                             onAskNimbus={handleAskNimbus}
                             onPreview={onPreview}
+                            onEdit={onEdit}
+                            onInfo={handleFileInfo}
                           />
                         </MotionBox>
                       </Grid>
@@ -512,6 +532,13 @@ const FileExplorerContent = ({
         isOpen={chatPanelOpen}
         onClose={handleCloseChatPanel}
         file={selectedFile}
+      />
+
+      {/* File Info Panel */}
+      <FileInfoPanel
+        isOpen={infoPanelOpen}
+        onClose={handleCloseInfoPanel}
+        file={selectedFileForInfo}
       />
     </Box>
   );

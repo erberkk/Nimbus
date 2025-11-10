@@ -41,7 +41,14 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 		files.Get("/download-url", handlers.GetDownloadPresignedURL(cfg))
 		files.Get("/preview-url", handlers.GetPreviewPresignedURL(cfg)) // Supports ?file_id=xxx or ?filename=xxx
 		files.Post("/:id/move", handlers.MoveFile(cfg))
+		files.Get("/onlyoffice-config", handlers.GetOnlyOfficeConfig(cfg)) // OnlyOffice editor config
 	}
+
+	// OnlyOffice callback (public - called by OnlyOffice server)
+	api.Post("/files/onlyoffice-callback", handlers.OnlyOfficeCallback(cfg))
+
+	// OnlyOffice document proxy (public - token-protected, called by OnlyOffice server)
+	api.Get("/files/onlyoffice-document", handlers.GetOnlyOfficeDocument(cfg))
 
 	// Folder routes (protected)
 	folders := api.Group("/folders")
