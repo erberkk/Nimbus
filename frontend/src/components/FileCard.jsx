@@ -7,9 +7,11 @@ import {
   Menu,
   MenuItem,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import ImageIcon from '@mui/icons-material/Image';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -22,7 +24,14 @@ import ShareIcon from '@mui/icons-material/Share';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import EditIcon from '@mui/icons-material/Edit';
 import InfoIcon from '@mui/icons-material/Info';
-import { isPreviewable, isAskableFile, isEditable, formatFileSize, formatDate, formatContentType } from '../utils/fileUtils';
+import {
+  isPreviewable,
+  isAskableFile,
+  isEditable,
+  formatFileSize,
+  formatDate,
+  formatContentType,
+} from '../utils/fileUtils';
 
 const MotionCard = motion.create(Card);
 
@@ -40,8 +49,18 @@ const getFileIcon = contentType => {
   return <InsertDriveFileIcon sx={{ fontSize: 36, color: '#667eea' }} />;
 };
 
-
-const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, onPreview, onEdit, onInfo }) => {
+const FileCard = ({
+  file,
+  onDownload,
+  onDelete,
+  onMove,
+  onShare,
+  onAskNimbus,
+  onPreview,
+  onEdit,
+  onInfo,
+}) => {
+  const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState(null);
 
   const handleMenuOpen = event => {
@@ -56,7 +75,7 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, on
   // Check if file is previewable using utility function
   const fileIsPreviewable = isPreviewable(file?.content_type, file?.filename);
 
-  const handleCardClick = (e) => {
+  const handleCardClick = e => {
     // Don't trigger preview if clicking on menu button
     if (e.target.closest('button') || e.target.closest('[role="button"]')) {
       return;
@@ -124,7 +143,7 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, on
 
   // Word ve PDF dosyaları için Nimbus'a Sor seçeneğini göster
   const fileIsAskable = isAskableFile(file?.content_type, file?.filename);
-  
+
   // Word, Excel, PowerPoint dosyaları için Düzenle seçeneğini göster
   const fileIsEditable = isEditable(file?.content_type, file?.filename);
 
@@ -178,17 +197,44 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, on
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
           <Chip
             label={formatContentType(file.content_type, file.filename)}
             size="small"
             variant="outlined"
             sx={{ fontSize: '0.7rem' }}
           />
+          {fileIsAskable && file.processing_status && (
+            <Chip
+              label={
+                file.processing_status === 'processing'
+                  ? t('ai.processing')
+                  : file.processing_status === 'completed'
+                    ? t('ai.ready')
+                    : file.processing_status === 'failed'
+                      ? t('ai.failed')
+                      : t('ai.pending')
+              }
+              size="small"
+              color={
+                file.processing_status === 'completed'
+                  ? 'success'
+                  : file.processing_status === 'failed'
+                    ? 'error'
+                    : 'warning'
+              }
+              icon={
+                file.processing_status === 'processing' ? (
+                  <CircularProgress size={12} sx={{ color: 'inherit' }} />
+                ) : undefined
+              }
+              sx={{ fontSize: '0.7rem' }}
+            />
+          )}
           {file.isShared && (
             <>
               <Chip
-                label={file.access_type === 'read' ? 'Görüntüleme' : 'Düzenleme'}
+                label={file.access_type === 'read' ? t('access.read') : t('access.write')}
                 size="small"
                 color={file.access_type === 'read' ? 'info' : 'warning'}
                 sx={{ fontSize: '0.7rem' }}
@@ -211,35 +257,43 @@ const FileCard = ({ file, onDownload, onDelete, onMove, onShare, onAskNimbus, on
       >
         <MenuItem onClick={handleInfo}>
           <InfoIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          Bilgi
+          {t('info')}
         </MenuItem>
         <MenuItem onClick={handleDownload}>
           <DownloadIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          İndir
+          {t('download')}
         </MenuItem>
         {fileIsEditable && (
           <MenuItem onClick={handleEdit} sx={{ color: '#667eea' }}>
             <EditIcon sx={{ mr: 1.5, fontSize: 20 }} />
-            Düzenle
+            {t('edit')}
           </MenuItem>
         )}
         {fileIsAskable && (
-          <MenuItem onClick={handleAskNimbus} sx={{ color: '#667eea' }}>
+          <MenuItem
+            onClick={handleAskNimbus}
+            disabled={file.processing_status !== 'completed'}
+            sx={{ color: '#667eea' }}
+          >
             <SmartToyIcon sx={{ mr: 1.5, fontSize: 20 }} />
-            Nimbus'a Sor
+            {file.processing_status === 'processing'
+              ? t('ai.ask_nimbus_processing')
+              : file.processing_status === 'failed'
+                ? t('ai.ask_nimbus_error')
+                : t('ai.ask_nimbus')}
           </MenuItem>
         )}
         <MenuItem onClick={handleShare}>
           <ShareIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          Paylaş
+          {t('share')}
         </MenuItem>
         <MenuItem onClick={handleMove}>
           <DriveFileMoveIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          Taşı
+          {t('move')}
         </MenuItem>
         <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
           <DeleteIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          Sil
+          {t('delete')}
         </MenuItem>
       </Menu>
     </MotionCard>

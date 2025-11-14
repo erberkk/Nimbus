@@ -47,7 +47,6 @@ const getFileIcon = contentType => {
   return <InsertDriveFileIcon color="action" />;
 };
 
-
 const FileList = ({ refreshTrigger }) => {
   const { t } = useTranslation();
   const [files, setFiles] = useState([]);

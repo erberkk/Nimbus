@@ -27,6 +27,11 @@ func main() {
 		log.Fatal("❌ MinIO bağlantı hatası:", err)
 	}
 
+	// Document processor initialization
+	if err := services.InitDocumentProcessor(cfg, database.FileCollection); err != nil {
+		log.Fatal("❌ Document processor başlatma hatası:", err)
+	}
+
 	// Fiber uygulaması oluşturma
 	app := fiber.New(fiber.Config{
 		ServerHeader: "Nimbus",

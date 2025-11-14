@@ -167,7 +167,6 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
         onUploadSuccess?.();
         onClose();
       }, 2000);
-
     } catch (error) {
       setError(`Yükleme hatası: ${error.message}`);
     } finally {
@@ -222,7 +221,7 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
         handleMultipleFiles(files);
       } else {
         // Tek dosya yükleme modu
-      handleFile(e.target.files[0]);
+        handleFile(e.target.files[0]);
       }
     }
   };
@@ -239,7 +238,9 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CloudUploadIcon sx={{ color: 'primary.main' }} />
-          <Typography variant="h6">{isFolderUpload ? 'Klasör Yükle' : 'Dosya Yükle'}</Typography>
+          <Typography variant="h6">
+            {isFolderUpload ? t('upload.title_folder') : t('upload.title_file')}
+          </Typography>
         </Box>
       </DialogTitle>
 
@@ -252,7 +253,7 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
             onClick={() => setIsFolderUpload(false)}
             sx={{ flex: 1 }}
           >
-            Tek Dosya
+            {t('upload.mode_single')}
           </Button>
           <Button
             variant={isFolderUpload ? 'contained' : 'outlined'}
@@ -260,7 +261,7 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
             onClick={() => setIsFolderUpload(true)}
             sx={{ flex: 1 }}
           >
-            Klasör
+            {t('upload.mode_folder')}
           </Button>
         </Box>
 
@@ -271,52 +272,52 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
           style={{ display: 'none' }}
           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.mp3,.wav,.flac,.aac,.ogg,.m4a,.mp4,.avi,.mov,.wmv,.webm,.mkv,.py,.js,.jsx,.ts,.tsx,.cs,.java,.kt,.kts,.json,.md,.xml,.html,.css,.sh,.bash,.yaml,.yml,.go,.rs,.php,.rb,.pl,.scala,.c,.cpp,.cc,.cxx,.h,.hpp,.sql,.vue,.svelte,.swift,.dart,.lua,.r,.m,.mm,.ps1"
           multiple={!isFolderUpload}
-          webkitdirectory={isFolderUpload ? "" : undefined}
+          webkitdirectory={isFolderUpload ? '' : undefined}
         />
 
-      <AnimatePresence>
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            <Alert
-              severity="error"
-              sx={{ mb: 2 }}
-              onClose={resetUpload}
-              action={
-                <IconButton size="small" onClick={resetUpload}>
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              }
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
             >
-              {error}
-            </Alert>
-          </motion.div>
-        )}
+              <Alert
+                severity="error"
+                sx={{ mb: 2 }}
+                onClose={resetUpload}
+                action={
+                  <IconButton size="small" onClick={resetUpload}>
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                }
+              >
+                {error}
+              </Alert>
+            </motion.div>
+          )}
 
-        {success && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            <Alert
-              severity="success"
-              sx={{ mb: 2 }}
-              onClose={resetUpload}
-              action={
-                <IconButton size="small" onClick={resetUpload}>
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              }
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
             >
-              {success}
-            </Alert>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <Alert
+                severity="success"
+                sx={{ mb: 2 }}
+                onClose={resetUpload}
+                action={
+                  <IconButton size="small" onClick={resetUpload}>
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                }
+              >
+                {success}
+              </Alert>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <MotionBox
           whileHover={{ scale: 1.02 }}
@@ -408,28 +409,28 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
         </MotionBox>
       </DialogContent>
 
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={onClose} variant="outlined">
-            İptal
+      <DialogActions sx={{ p: 2 }}>
+        <Button onClick={onClose} variant="outlined">
+          İptal
+        </Button>
+        {uploadedFile && (
+          <Button
+            onClick={() => {
+              onUploadSuccess();
+              resetUpload();
+              onClose();
+            }}
+            variant="contained"
+            sx={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            }}
+          >
+            Tamam
           </Button>
-          {uploadedFile && (
-            <Button
-              onClick={() => {
-                onUploadSuccess();
-                resetUpload();
-                onClose();
-              }}
-              variant="contained"
-              sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              }}
-            >
-              Tamam
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
-    );
-  };
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 export default FileUpload;

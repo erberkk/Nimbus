@@ -38,13 +38,7 @@ function AppRoutes() {
       />
       <Route
         path="/share/:publicLink"
-        element={
-          isAuthenticated ? (
-            <SharePage />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
+        element={isAuthenticated ? <SharePage /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/dashboard"

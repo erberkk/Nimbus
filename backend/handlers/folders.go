@@ -178,12 +178,20 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 		fileList := make([]models.FileResponse, 0, len(files))
 		for _, file := range files {
 			fileList = append(fileList, models.FileResponse{
-				ID:          file.ID.Hex(),
-				Filename:    file.Filename,
-				Size:        file.Size,
-				ContentType: file.ContentType,
-				CreatedAt:   file.CreatedAt,
-				UpdatedAt:   file.UpdatedAt,
+				ID:               file.ID.Hex(),
+				Filename:         file.Filename,
+				Size:             file.Size,
+				ContentType:      file.ContentType,
+				PublicLink:       file.PublicLink,
+				AccessList:       file.AccessList,
+				ParentID:         file.ParentID,
+				Ancestors:        file.Ancestors,
+				ProcessingStatus: file.ProcessingStatus,
+				ProcessingError:  file.ProcessingError,
+				ProcessedAt:      file.ProcessedAt,
+				ChunkCount:       file.ChunkCount,
+				CreatedAt:        file.CreatedAt,
+				UpdatedAt:        file.UpdatedAt,
 			})
 		}
 
@@ -297,12 +305,20 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 		fileList := make([]models.FileResponse, 0, len(files))
 		for _, file := range files {
 			fileList = append(fileList, models.FileResponse{
-				ID:          file.ID.Hex(),
-				Filename:    file.Filename,
-				Size:        file.Size,
-				ContentType: file.ContentType,
-				CreatedAt:   file.CreatedAt,
-				UpdatedAt:   file.UpdatedAt,
+				ID:               file.ID.Hex(),
+				Filename:         file.Filename,
+				Size:             file.Size,
+				ContentType:      file.ContentType,
+				PublicLink:       file.PublicLink,
+				AccessList:       file.AccessList,
+				ParentID:         file.ParentID,
+				Ancestors:        file.Ancestors,
+				ProcessingStatus: file.ProcessingStatus,
+				ProcessingError:  file.ProcessingError,
+				ProcessedAt:      file.ProcessedAt,
+				ChunkCount:       file.ChunkCount,
+				CreatedAt:        file.CreatedAt,
+				UpdatedAt:        file.UpdatedAt,
 			})
 		}
 

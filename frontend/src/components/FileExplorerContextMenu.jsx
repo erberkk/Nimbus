@@ -1,11 +1,6 @@
 import React from 'react';
-import {
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-} from '@mui/material';
+import { useTranslation } from 'react-i18next';
+import { Menu, MenuItem, ListItemIcon, ListItemText, Divider } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
@@ -22,6 +17,7 @@ const FileExplorerContextMenu = ({
   onCreateFolder,
   onFileUpload,
 }) => {
+  const { t } = useTranslation();
   // Eğer seçili bir öğe yoksa (boş yere sağ tıklandıysa)
   if (!selectedItem) {
     return (
@@ -35,7 +31,7 @@ const FileExplorerContextMenu = ({
           <ListItemIcon>
             <CreateNewFolderIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Yeni Klasör</ListItemText>
+          <ListItemText>{t('folder.new_folder')}</ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -47,7 +43,7 @@ const FileExplorerContextMenu = ({
           <ListItemIcon>
             <CloudUploadIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Dosya Yükle</ListItemText>
+          <ListItemText>{t('folder.upload_file')}</ListItemText>
         </MenuItem>
 
         <MenuItem
@@ -59,7 +55,7 @@ const FileExplorerContextMenu = ({
           <ListItemIcon>
             <FolderIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Klasör Yükle</ListItemText>
+          <ListItemText>{t('folder.upload_folder')}</ListItemText>
         </MenuItem>
       </Menu>
     );
@@ -79,7 +75,7 @@ const FileExplorerContextMenu = ({
             <ListItemIcon>
               <DownloadIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>İndir</ListItemText>
+            <ListItemText>{t('download')}</ListItemText>
           </MenuItem>,
           <Divider key="divider" />,
           <MenuItem
@@ -92,7 +88,7 @@ const FileExplorerContextMenu = ({
             <ListItemIcon>
               <DeleteIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Sil</ListItemText>
+            <ListItemText>{t('delete')}</ListItemText>
           </MenuItem>,
         ]
       ) : (
@@ -105,7 +101,7 @@ const FileExplorerContextMenu = ({
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Sil</ListItemText>
+          <ListItemText>{t('delete')}</ListItemText>
         </MenuItem>
       )}
     </Menu>

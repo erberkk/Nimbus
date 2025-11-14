@@ -1,4 +1,5 @@
 import { useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Box } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
@@ -11,8 +12,9 @@ import FileExplorerContextMenu from './FileExplorerContextMenu';
 import FileExplorerDialogs from './FileExplorerDialogs';
 
 const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
-  
+
   // Custom hooks
   const navigation = useNavigation(selectedMenu);
   const fileExplorer = useFileExplorer(selectedMenu, navigation.getCurrentNavState);
@@ -20,7 +22,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
   const uiState = useUIState();
 
   useImperativeHandle(ref, () => ({
-    handleCreateFolder: fileExplorer.createFolder
+    handleCreateFolder: fileExplorer.createFolder,
   }));
 
   useEffect(() => {
@@ -37,7 +39,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
     navigation.handleBackToRoot();
   };
 
-  const handleBreadcrumbClick = (index) => {
+  const handleBreadcrumbClick = index => {
     navigation.handleBreadcrumbClick(index);
   };
 
@@ -46,7 +48,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
   };
 
   const handleDeleteFolder = async folder => {
-    if (!window.confirm(`"${folder.name}" klasörünü silmek istediğinizden emin misiniz?`)) {
+    if (!window.confirm(t('folder.delete_confirm', { name: folder.name }))) {
       return;
     }
     await fileExplorer.deleteFolder(folder.id);
@@ -57,7 +59,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
   };
 
   const handleDeleteFile = async file => {
-    if (!window.confirm('Bu dosyayı silmek istediğinizden emin misiniz?')) {
+    if (!window.confirm(t('file.delete_confirm'))) {
       return;
     }
     await fileExplorer.deleteFile(file.id);

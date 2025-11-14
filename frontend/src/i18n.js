@@ -96,6 +96,11 @@ const resources = {
       cancel: 'İptal',
       confirm: 'Onayla',
       close: 'Kapat',
+      move: 'Taşı',
+      info: 'Bilgi',
+      share: 'Paylaş',
+      'access.read': 'Görüntüleme',
+      'access.write': 'Düzenleme',
       confirm_delete: 'Bu dosyayı silmek istediğinizden emin misiniz?',
       delete_success: 'Dosya başarıyla silindi',
       delete_error: 'Dosya silinirken hata oluştu',
@@ -141,6 +146,125 @@ const resources = {
       'landing.footer_company': 'Şirket',
       'landing.footer_support': 'Destek',
       'landing.footer_rights': 'Tüm hakları saklıdır.',
+
+      // AI & Chat
+      'ai.title': 'Nimbus AI',
+      'ai.subtitle': 'Dosya Asistanı',
+      'ai.ask_nimbus': "Nimbus'a Sor",
+      'ai.ask_nimbus_processing': "Nimbus'a Sor (İşleniyor)",
+      'ai.ask_nimbus_error': "Nimbus'a Sor (Hata)",
+      'ai.processing': 'İşleniyor...',
+      'ai.ready': 'AI Hazır',
+      'ai.failed': 'İşleme Hatası',
+      'ai.pending': 'Beklemede',
+      'ai.welcome': 'Merhaba! "{{filename}}" dosyası hakkında ne öğrenmek istiyorsun?',
+      'ai.processing_message':
+        '"{{filename}}" dosyası şu anda işleniyor. Lütfen işlem tamamlanana kadar bekleyin.',
+      'ai.failed_message':
+        '"{{filename}}" dosyası işlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.',
+      'ai.pending_message': '"{{filename}}" henüz işlenmedi. Dosya işlenirken lütfen bekleyin.',
+      'ai.placeholder': 'Dosya hakkında soru sor...',
+      'ai.typing': 'Nimbus yazıyor',
+      'ai.not_processed': 'Dosya henüz işlenmedi. Lütfen bekleyin.',
+      'ai.query_error': 'Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.',
+      'ai.unsaved_changes': 'Kaydedilmemiş değişiklikler',
+      'ai.save_hint': 'Ctrl+S ile kaydet',
+
+      // File Preview
+      'file.loading_code': 'Kod dosyası yükleniyor...',
+      'file.converting': 'Dosya dönüştürülüyor...',
+      'file.old_word_format': 'Eski format Word dosyası (.doc) için önizleme desteklenmiyor',
+      'file.old_word_hint': 'Dosyayı görüntülemek için indirin veya .docx formatına dönüştürün',
+
+      // File Info Panel
+      'file_info.title': 'Dosya Bilgileri',
+      'file_info.size': 'Dosya Boyutu',
+      'file_info.type': 'Dosya Türü',
+      'file_info.share_link': 'PAYLAŞIM LİNKİ',
+      'file.preview_error': 'Dosya önizlemesi yüklenemedi',
+      'file.content_error': 'Dosya içeriği yüklenemedi',
+      'file.save_success': 'Dosya başarıyla kaydedildi',
+      'file.save_error': 'Dosya kaydedilemedi',
+      'file.image_error': 'Resim yüklenemedi',
+      'file.video_error': 'Video yüklenemedi',
+      'file.video_not_supported': 'Tarayıcınız video elementi desteklemiyor',
+      'file.onlyoffice_required': 'Bu dosya türü için OnlyOffice önizleme kullanılmalı',
+      'file.preview_not_supported': 'Bu dosya türü için önizleme desteklenmiyor',
+
+      // File Upload
+      'upload.title_file': 'Dosya Yükle',
+      'upload.title_folder': 'Klasör Yükle',
+      'upload.mode_single': 'Tek Dosya',
+      'upload.mode_folder': 'Klasör',
+
+      // Folders
+      'folder.title': 'Klasörler',
+      'folder.create': 'Yeni Klasör Oluştur',
+      'folder.name': 'Klasör Adı',
+      'folder.color': 'Klasör Rengi',
+      'folder.new': 'Yeni Klasör',
+      'folder.items': '{{count}} öğe',
+      'folder.items_zero': '0 öğe',
+      'folder.upload': 'Klasör yükleme',
+      'folder.upload_file': 'Dosya Yükle',
+      'folder.upload_folder': 'Klasör Yükle',
+      'folder.new_folder': 'Yeni Klasör',
+      'folder.empty': 'Bu klasör boş',
+      'folder.no_items': 'Henüz klasör veya dosya yok',
+      'folder.empty_hint': 'Sağ tıklayarak yeni klasör oluşturun veya dosya yükleyin',
+      'folder.drag_drop': 'Dosyaları buraya bırakın',
+      'folder.drag_drop_hint': 'Sürükleyip bıraktığınız dosyalar yüklenecek',
+      'folder.files_title': 'Dosyalar',
+      'folder.new_folder_menu': 'Yeni klasör',
+      'folder.upload_menu': 'Dosya yükleme',
+      'folder.delete_confirm': '"{{name}}" klasörünü silmek istediğinizden emin misiniz?',
+      'folder.rename': 'Yeniden Adlandır',
+      'folder.uploading': '{{count}} dosya yükleniyor...',
+      'folder.upload_success': '{{count}} dosya başarıyla yüklendi!',
+      'folder.upload_error': 'Dosya yükleme hatası: {{error}}',
+      'folder.upload_success_single': '{{count}} dosya başarıyla yüklendi',
+      'folder.upload_error_single': 'Yükleme hatası: {{error}}',
+
+      // OnlyOffice Editor
+      'onlyoffice.api_error': 'OnlyOffice Document Server API yüklenemedi',
+      'onlyoffice.connection_error': 'OnlyOffice Document Server bağlantı hatası',
+      'onlyoffice.connection_failed': "OnlyOffice Document Server'a bağlanılamadı",
+      'onlyoffice.config_error': 'Dosya düzenleme konfigürasyonu yüklenemedi',
+      'onlyoffice.start_error': 'Dosya düzenleme başlatılamadı',
+      'onlyoffice.editor_error': 'OnlyOffice editor yüklenemedi',
+      'onlyoffice.edit_error': 'Dosya düzenlenirken hata oluştu',
+      'onlyoffice.init_error': 'Dosya düzenleyici başlatılamadı',
+      'onlyoffice.edit_mode': 'Düzenle',
+      'onlyoffice.preview_mode': 'Önizle',
+      'onlyoffice.loading': 'OnlyOffice editor yükleniyor...',
+      'onlyoffice.invalid_config': 'Geçersiz OnlyOffice config: document URL bulunamadı',
+
+      // Share Dialog
+      'share.title': 'Paylaş',
+      'share.viewer': 'Görüntüleyen',
+      'share.editor': 'Düzenleyen',
+      'share.no_permission':
+        'Sadece görüntüleme yetkiniz var. Bu kaynağı paylaşamaz veya erişimleri düzenleyemezsiniz.',
+      'share.public_hint':
+        'Bu bağlantıyı herkesle paylaşabilirsiniz. Bağlantıya tıklayan giriş yapmış kullanıcılar dosyayı görüntüleyebilir.',
+      'share.public_link': 'Public Bağlantı',
+      'share.load_error': 'Paylaşımlar yüklenemedi',
+      'share.success': '{{email}} ile paylaşıldı',
+      'share.failed': 'Paylaşım başarısız',
+      'share.remove_success': 'Paylaşım kaldırıldı',
+      'share.remove_failed': 'Paylaşım kaldırılamadı',
+      'share.link_copied': 'Bağlantı kopyalandı',
+      'share.link_copy_failed': 'Bağlantı kopyalanamadı',
+
+      // User Search
+      'user_search.placeholder': 'Email ile kullanıcı ara...',
+
+      // Create Folder
+      'folder.name_placeholder': 'Belgeler, Resimler, Projeler...',
+
+      // File Explorer Header
+      'header.shared': 'Paylaşılanlarım',
+      'file.delete_confirm': 'Bu dosyayı silmek istediğinizden emin misiniz?',
     },
   },
   en: {
@@ -236,6 +360,11 @@ const resources = {
       cancel: 'Cancel',
       confirm: 'Confirm',
       close: 'Close',
+      move: 'Move',
+      info: 'Info',
+      share: 'Share',
+      'access.read': 'View',
+      'access.write': 'Edit',
       confirm_delete: 'Are you sure you want to delete this file?',
       delete_success: 'File deleted successfully',
       delete_error: 'Error deleting file',
@@ -282,6 +411,126 @@ const resources = {
       'landing.footer_company': 'Company',
       'landing.footer_support': 'Support',
       'landing.footer_rights': 'All rights reserved.',
+
+      // AI & Chat
+      'ai.title': 'Nimbus AI',
+      'ai.subtitle': 'File Assistant',
+      'ai.ask_nimbus': 'Ask Nimbus',
+      'ai.ask_nimbus_processing': 'Ask Nimbus (Processing)',
+      'ai.ask_nimbus_error': 'Ask Nimbus (Error)',
+      'ai.processing': 'Processing...',
+      'ai.ready': 'AI Ready',
+      'ai.failed': 'Processing Error',
+      'ai.pending': 'Pending',
+      'ai.welcome': 'Hello! What would you like to know about "{{filename}}"?',
+      'ai.processing_message':
+        'The file "{{filename}}" is currently being processed. Please wait until processing is complete.',
+      'ai.failed_message':
+        'An error occurred while processing the file "{{filename}}". Please try again later.',
+      'ai.pending_message':
+        'The file "{{filename}}" has not been processed yet. Please wait while the file is being processed.',
+      'ai.placeholder': 'Ask a question about the file...',
+      'ai.typing': 'Nimbus is typing',
+      'ai.not_processed': 'File has not been processed yet. Please wait.',
+      'ai.query_error': 'Sorry, an error occurred. Please try again.',
+      'ai.unsaved_changes': 'Unsaved changes',
+      'ai.save_hint': 'Press Ctrl+S to save',
+
+      // File Preview
+      'file.loading_code': 'Loading code file...',
+      'file.converting': 'Converting file...',
+      'file.old_word_format': 'Preview is not supported for old format Word files (.doc)',
+      'file.old_word_hint': 'Download the file or convert it to .docx format to view it',
+
+      // File Info Panel
+      'file_info.title': 'File Information',
+      'file_info.size': 'File Size',
+      'file_info.type': 'File Type',
+      'file_info.share_link': 'SHARE LINK',
+      'file.preview_error': 'Failed to load file preview',
+      'file.content_error': 'Failed to load file content',
+      'file.save_success': 'File saved successfully',
+      'file.save_error': 'Failed to save file',
+      'file.image_error': 'Failed to load image',
+      'file.video_error': 'Failed to load video',
+      'file.video_not_supported': 'Your browser does not support video element',
+      'file.onlyoffice_required': 'OnlyOffice preview should be used for this file type',
+      'file.preview_not_supported': 'Preview is not supported for this file type',
+
+      // File Upload
+      'upload.title_file': 'Upload File',
+      'upload.title_folder': 'Upload Folder',
+      'upload.mode_single': 'Single File',
+      'upload.mode_folder': 'Folder',
+
+      // Folders
+      'folder.title': 'Folders',
+      'folder.create': 'Create New Folder',
+      'folder.name': 'Folder Name',
+      'folder.color': 'Folder Color',
+      'folder.new': 'New Folder',
+      'folder.items': '{{count}} items',
+      'folder.items_zero': '0 items',
+      'folder.upload': 'Folder upload',
+      'folder.upload_file': 'Upload File',
+      'folder.upload_folder': 'Upload Folder',
+      'folder.new_folder': 'New Folder',
+      'folder.empty': 'This folder is empty',
+      'folder.no_items': 'No folders or files yet',
+      'folder.empty_hint': 'Right-click to create a new folder or upload files',
+      'folder.drag_drop': 'Drop files here',
+      'folder.drag_drop_hint': 'Files you drag and drop will be uploaded',
+      'folder.files_title': 'Files',
+      'folder.new_folder_menu': 'New folder',
+      'folder.upload_menu': 'File upload',
+      'folder.delete_confirm': 'Are you sure you want to delete the folder "{{name}}"?',
+      'folder.rename': 'Rename',
+      'folder.uploading': 'Uploading {{count}} files...',
+      'folder.upload_success': '{{count}} files uploaded successfully!',
+      'folder.upload_error': 'File upload error: {{error}}',
+      'folder.upload_success_single': '{{count}} file uploaded successfully',
+      'folder.upload_error_single': 'Upload error: {{error}}',
+
+      // OnlyOffice Editor
+      'onlyoffice.api_error': 'Failed to load OnlyOffice Document Server API',
+      'onlyoffice.connection_error': 'OnlyOffice Document Server connection error',
+      'onlyoffice.connection_failed': 'Failed to connect to OnlyOffice Document Server',
+      'onlyoffice.config_error': 'Failed to load file editing configuration',
+      'onlyoffice.start_error': 'Failed to start file editing',
+      'onlyoffice.editor_error': 'Failed to load OnlyOffice editor',
+      'onlyoffice.edit_error': 'Error occurred while editing file',
+      'onlyoffice.init_error': 'Failed to initialize file editor',
+      'onlyoffice.edit_mode': 'Edit',
+      'onlyoffice.preview_mode': 'Preview',
+      'onlyoffice.loading': 'Loading OnlyOffice editor...',
+      'onlyoffice.invalid_config': 'Invalid OnlyOffice config: document URL not found',
+
+      // Share Dialog
+      'share.title': 'Share',
+      'share.viewer': 'Viewer',
+      'share.editor': 'Editor',
+      'share.no_permission':
+        'You only have view permission. You cannot share this resource or edit access.',
+      'share.public_hint':
+        'You can share this link with anyone. Users who click the link and are logged in can view the file.',
+      'share.public_link': 'Public Link',
+      'share.load_error': 'Failed to load shares',
+      'share.success': 'Shared with {{email}}',
+      'share.failed': 'Share failed',
+      'share.remove_success': 'Share removed',
+      'share.remove_failed': 'Failed to remove share',
+      'share.link_copied': 'Link copied',
+      'share.link_copy_failed': 'Failed to copy link',
+
+      // User Search
+      'user_search.placeholder': 'Search user by email...',
+
+      // Create Folder
+      'folder.name_placeholder': 'Documents, Images, Projects...',
+
+      // File Explorer Header
+      'header.shared': 'My Shared',
+      'file.delete_confirm': 'Are you sure you want to delete this file?',
     },
   },
 };

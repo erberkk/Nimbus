@@ -32,19 +32,23 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
           const folders = response.folders || [];
           const files = response.files || [];
 
-          setFolders(folders.map(item => ({
-            ...item.resource,
-            item_count: item.resource.ItemCount || item.resource.item_count || 0,
-            access_type: item.access_type,
-            owner: item.owner,
-            isShared: true
-          })));
-          setFiles(files.map(item => ({
-            ...item.resource,
-            access_type: item.access_type,
-            owner: item.owner,
-            isShared: true
-          })));
+          setFolders(
+            folders.map(item => ({
+              ...item.resource,
+              item_count: item.resource.ItemCount || item.resource.item_count || 0,
+              access_type: item.access_type,
+              owner: item.owner,
+              isShared: true,
+            }))
+          );
+          setFiles(
+            files.map(item => ({
+              ...item.resource,
+              access_type: item.access_type,
+              owner: item.owner,
+              isShared: true,
+            }))
+          );
         } else {
           // Load shared files and folders at root level
           const response = await shareApi.getSharedWithMe();
@@ -62,16 +66,18 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
             item_count: item.resource.ItemCount || item.resource.item_count || 0,
             access_type: item.access_type,
             owner: item.owner,
-            isShared: true
+            isShared: true,
           }));
 
           setFolders(foldersWithCount);
-          setFiles(sharedFiles.map(item => ({
-            ...item.resource,
-            access_type: item.access_type,
-            owner: item.owner,
-            isShared: true
-          })));
+          setFiles(
+            sharedFiles.map(item => ({
+              ...item.resource,
+              access_type: item.access_type,
+              owner: item.owner,
+              isShared: true,
+            }))
+          );
         }
       } else {
         // Load home folder contents
@@ -104,51 +110,60 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
     }
   }, [selectedMenu, getCurrentNavState]);
 
-  const createFolder = useCallback(async (folderData) => {
-    try {
-      const currentNav = getCurrentNavState();
-      const parentId = currentNav.currentFolder?.id || null;
-      
-      const response = await folderApi.createFolder({
-        ...folderData,
-        folder_id: parentId
-      });
+  const createFolder = useCallback(
+    async folderData => {
+      try {
+        const currentNav = getCurrentNavState();
+        const parentId = currentNav.currentFolder?.id || null;
 
-      if (response && response.folder) {
-        window.toast?.success('Klasör başarıyla oluşturuldu');
-        loadContents(); // Refresh the list
-        return response.folder;
+        const response = await folderApi.createFolder({
+          ...folderData,
+          folder_id: parentId,
+        });
+
+        if (response && response.folder) {
+          window.toast?.success('Klasör başarıyla oluşturuldu');
+          loadContents(); // Refresh the list
+          return response.folder;
+        }
+      } catch (error) {
+        console.error('Klasör oluşturma hatası:', error);
+        window.toast?.error('Klasör oluşturulurken hata oluştu');
+        throw error;
       }
-    } catch (error) {
-      console.error('Klasör oluşturma hatası:', error);
-      window.toast?.error('Klasör oluşturulurken hata oluştu');
-      throw error;
-    }
-  }, [getCurrentNavState, loadContents]);
+    },
+    [getCurrentNavState, loadContents]
+  );
 
-  const deleteFolder = useCallback(async (folderId) => {
-    try {
-      await folderApi.deleteFolder(folderId);
-      window.toast?.success('Klasör başarıyla silindi');
-      loadContents(); // Refresh the list
-    } catch (error) {
-      console.error('Klasör silme hatası:', error);
-      window.toast?.error('Klasör silinirken hata oluştu');
-    }
-  }, [loadContents]);
+  const deleteFolder = useCallback(
+    async folderId => {
+      try {
+        await folderApi.deleteFolder(folderId);
+        window.toast?.success('Klasör başarıyla silindi');
+        loadContents(); // Refresh the list
+      } catch (error) {
+        console.error('Klasör silme hatası:', error);
+        window.toast?.error('Klasör silinirken hata oluştu');
+      }
+    },
+    [loadContents]
+  );
 
-  const deleteFile = useCallback(async (fileId) => {
-    try {
-      await fileApi.deleteFile(fileId);
-      window.toast?.success('Dosya başarıyla silindi');
-      loadContents(); // Refresh the list
-    } catch (error) {
-      console.error('Dosya silme hatası:', error);
-      window.toast?.error('Dosya silinirken hata oluştu');
-    }
-  }, [loadContents]);
+  const deleteFile = useCallback(
+    async fileId => {
+      try {
+        await fileApi.deleteFile(fileId);
+        window.toast?.success('Dosya başarıyla silindi');
+        loadContents(); // Refresh the list
+      } catch (error) {
+        console.error('Dosya silme hatası:', error);
+        window.toast?.error('Dosya silinirken hata oluştu');
+      }
+    },
+    [loadContents]
+  );
 
-  const downloadFile = useCallback(async (file) => {
+  const downloadFile = useCallback(async file => {
     try {
       const response = await fileApi.downloadFile(file.id);
       const blob = new Blob([response], { type: file.content_type });
@@ -175,6 +190,6 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
     createFolder,
     deleteFolder,
     deleteFile,
-    downloadFile
+    downloadFile,
   };
 };

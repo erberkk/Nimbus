@@ -174,6 +174,66 @@ export const fileApi = {
   updateFileContent: (fileId, content) => {
     return api.put(`/files/${encodeURIComponent(fileId)}/content`, { content });
   },
+
+  // RAG Document Processing
+  processDocument: fileId => {
+    return api.post(`/files/${encodeURIComponent(fileId)}/process`, {});
+  },
+
+  // Query document with AI
+  queryDocument: async (fileId, question) => {
+    const response = await fetch(`${API_BASE_URL}/ai/query`, {
+      method: 'POST',
+      headers: api.getAuthHeaders(),
+      body: JSON.stringify({
+        file_id: fileId,
+        question: question,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Query failed');
+    }
+
+    return await response.json();
+  },
+
+  // Get conversation history
+  getConversationHistory: async fileId => {
+    const response = await fetch(
+      `${API_BASE_URL}/ai/conversation?file_id=${encodeURIComponent(fileId)}`,
+      {
+        method: 'GET',
+        headers: api.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to fetch conversation history');
+    }
+
+    return await response.json();
+  },
+
+  // Clear conversation history
+  clearConversationHistory: async fileId => {
+    const response = await fetch(
+      `${API_BASE_URL}/ai/conversation?file_id=${encodeURIComponent(fileId)}`,
+      {
+        method: 'DELETE',
+        headers: api.getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to clear conversation history');
+    }
+
+    return await response.json();
+  },
 };
 
 // Folder specific methods

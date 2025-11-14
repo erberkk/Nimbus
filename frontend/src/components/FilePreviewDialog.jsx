@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogTitle,
@@ -22,7 +23,14 @@ import VideoFileIcon from '@mui/icons-material/VideoFile';
 import DescriptionIcon from '@mui/icons-material/Description';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import { fileApi } from '../services/api';
-import { getFileType, isPreviewable as checkIsPreviewable, formatFileSize, isEditable, formatContentType, isCodeFile } from '../utils/fileUtils';
+import {
+  getFileType,
+  isPreviewable as checkIsPreviewable,
+  formatFileSize,
+  isEditable,
+  formatContentType,
+  isCodeFile,
+} from '../utils/fileUtils';
 import OnlyOfficeEditor from './OnlyOfficeEditor';
 import CodeEditor from './CodeEditor';
 
@@ -31,6 +39,7 @@ const Transition = React.forwardRef(function Transition(props, ref) {
 });
 
 const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
+  const { t } = useTranslation();
   const [previewUrl, setPreviewUrl] = useState(null);
   const [codeContent, setCodeContent] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -90,8 +99,8 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
 
       setPreviewUrl(presignedUrl);
     } catch (err) {
-      setError('Dosya önizlemesi yüklenemedi');
-      window.toast?.error('Dosya önizlemesi yüklenemedi');
+      setError(t('file.preview_error'));
+      window.toast?.error(t('file.preview_error'));
     } finally {
       setLoading(false);
     }
@@ -107,31 +116,30 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
       const content = await fileApi.getFileContent(file.id, forceRefresh);
       setCodeContent(content);
     } catch (err) {
-      setError('Dosya içeriği yüklenemedi');
-      window.toast?.error('Dosya içeriği yüklenemedi');
+      setError(t('file.content_error'));
+      window.toast?.error(t('file.content_error'));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCodeSave = async (content) => {
+  const handleCodeSave = async content => {
     if (!file) return;
 
     try {
       setSaving(true);
       await fileApi.updateFileContent(file.id, content);
       setCodeContent(content);
-      window.toast?.success('Dosya başarıyla kaydedildi');
+      window.toast?.success(t('file.save_success'));
       if (onSave) {
         onSave();
       }
     } catch (err) {
-      window.toast?.error('Dosya kaydedilemedi');
+      window.toast?.error(t('file.save_error'));
     } finally {
       setSaving(false);
     }
   };
-
 
   const handleDownload = () => {
     if (onDownload && file) {
@@ -156,10 +164,10 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
           <CircularProgress size={48} />
           <Typography variant="body2" color="text.secondary">
             {fileType === 'code'
-              ? 'Kod dosyası yükleniyor...'
-              : fileType === 'word-docx' || fileType === 'excel' 
-              ? 'Dosya dönüştürülüyor...' 
-              : 'Dosya yükleniyor...'}
+              ? t('file.loading_code')
+              : fileType === 'word-docx' || fileType === 'excel'
+                ? t('file.converting', 'Dosya dönüştürülüyor...')
+                : t('loading')}
           </Typography>
         </Box>
       );
@@ -240,7 +248,7 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
                 borderRadius: 8,
               }}
               onError={() => {
-                setError('Resim yüklenemedi');
+                setError(t('file.image_error'));
               }}
             />
           </Box>
@@ -296,10 +304,10 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
                 borderRadius: 8,
               }}
               onError={() => {
-                setError('Video yüklenemedi');
+                setError(t('file.video_error'));
               }}
             >
-              Tarayıcınız video elementi desteklemiyor.
+              {t('file.video_not_supported')}
             </video>
           </Box>
         );
@@ -311,10 +319,14 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
               file={file}
               content={codeContent}
               readOnly={!fileIsEditable || (file?.isShared && file?.access_type === 'read')}
-              onChange={(content) => {
+              onChange={content => {
                 // Content changed, will be saved on Ctrl+S
               }}
-              onSave={fileIsEditable && (!file?.isShared || file?.access_type !== 'read') ? handleCodeSave : null}
+              onSave={
+                fileIsEditable && (!file?.isShared || file?.access_type !== 'read')
+                  ? handleCodeSave
+                  : null
+              }
             />
           </Box>
         );
@@ -337,7 +349,7 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
             }}
           >
             <Typography variant="body2" color="text.secondary">
-              Bu dosya türü için OnlyOffice önizleme kullanılmalı
+              {t('file.onlyoffice_required')}
             </Typography>
           </Box>
         );
@@ -357,13 +369,13 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
           >
             <DescriptionIcon sx={{ fontSize: 64, color: 'text.secondary' }} />
             <Typography variant="h6" color="text.secondary">
-              Eski format Word dosyası (.doc) için önizleme desteklenmiyor
+              {t('file.old_word_format')}
             </Typography>
             <Typography variant="body2" color="text.secondary" textAlign="center">
-              Dosyayı görüntülemek için indirin veya .docx formatına dönüştürün
+              {t('file.old_word_hint')}
             </Typography>
             <Button variant="contained" onClick={handleDownload} startIcon={<DownloadIcon />}>
-              İndir
+              {t('download')}
             </Button>
           </Box>
         );
@@ -381,10 +393,10 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
             }}
           >
             <Typography variant="h6" color="text.secondary">
-              Bu dosya türü için önizleme desteklenmiyor
+              {t('file.preview_not_supported')}
             </Typography>
             <Button variant="contained" onClick={handleDownload} startIcon={<DownloadIcon />}>
-              İndir
+              {t('download')}
             </Button>
           </Box>
         );
@@ -415,15 +427,7 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
 
   // If it's an Office document (editable with OnlyOffice), use OnlyOffice
   if (fileIsEditable && !fileIsCodeFile) {
-    return (
-      <OnlyOfficeEditor
-        open={open}
-        onClose={onClose}
-        file={file}
-        mode="view"
-        onSave={null}
-      />
-    );
+    return <OnlyOfficeEditor open={open} onClose={onClose} file={file} mode="view" onSave={null} />;
   }
 
   // If it's a code file, it will be handled in renderPreview
@@ -466,10 +470,10 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
         </Box>
       </DialogTitle>
 
-      <DialogContent 
-        dividers 
-        sx={{ 
-          p: 0, 
+      <DialogContent
+        dividers
+        sx={{
+          p: 0,
           position: 'relative',
           minHeight: fileIsCodeFile ? '70vh' : 'auto',
           height: fileIsCodeFile ? '70vh' : 'auto',
@@ -514,4 +518,3 @@ const FilePreviewDialog = ({ open, onClose, file, onDownload, onSave }) => {
 };
 
 export default FilePreviewDialog;
-

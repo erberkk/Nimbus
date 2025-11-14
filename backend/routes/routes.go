@@ -44,6 +44,16 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 		files.Get("/onlyoffice-config", handlers.GetOnlyOfficeConfig(cfg)) // OnlyOffice editor config
 		files.Get("/content", handlers.GetFileContent(cfg))                // Get file content as text (for code files)
 		files.Put("/:id/content", handlers.UpdateFileContent(cfg))         // Update file content (for code files)
+		files.Post("/:id/process", handlers.ProcessDocument(cfg))          // Trigger document processing for RAG
+	}
+
+	// AI routes (protected)
+	ai := api.Group("/ai")
+	ai.Use(middleware.RequireAuth(cfg.JWTSecret))
+	{
+		ai.Post("/query", handlers.QueryDocument(cfg))                     // Query processed document
+		ai.Get("/conversation", handlers.GetConversationHistory(cfg))      // Get chat history
+		ai.Delete("/conversation", handlers.ClearConversationHistory(cfg)) // Clear chat history
 	}
 
 	// OnlyOffice callback (public - called by OnlyOffice server)

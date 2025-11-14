@@ -52,17 +52,18 @@ const FileExplorerDialogs = ({
       />
 
       {/* OnlyOffice Editor Dialog - Only for Office documents */}
-      {dialogs.editFile && !isCodeFile(dialogs.editFile.content_type, dialogs.editFile.filename) && (
-        <OnlyOfficeEditor
-          open={dialogs.editDialogOpen}
-          onClose={dialogs.closeEditDialog}
-          file={dialogs.editFile}
-          onSave={() => {
-            // Trigger refresh after save
-            uiState.triggerRefresh();
-          }}
-        />
-      )}
+      {dialogs.editFile &&
+        !isCodeFile(dialogs.editFile.content_type, dialogs.editFile.filename) && (
+          <OnlyOfficeEditor
+            open={dialogs.editDialogOpen}
+            onClose={dialogs.closeEditDialog}
+            file={dialogs.editFile}
+            onSave={() => {
+              // Trigger refresh after save
+              uiState.triggerRefresh();
+            }}
+          />
+        )}
 
       {/* Code files use FilePreviewDialog for editing */}
       {dialogs.editFile && isCodeFile(dialogs.editFile.content_type, dialogs.editFile.filename) && (

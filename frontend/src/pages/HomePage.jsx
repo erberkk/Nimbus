@@ -19,42 +19,44 @@ const HomePage = () => {
     setFileUploadOpen(true);
   };
 
-  const handleMenuChange = (menuId) => {
+  const handleMenuChange = menuId => {
     setSelectedMenu(menuId);
   };
 
   return (
-    <Box sx={{ 
-      display: 'flex', 
-      bgcolor: 'background.default', 
-      height: '100vh', 
-      overflow: 'hidden',
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0
-    }}>
+    <Box
+      sx={{
+        display: 'flex',
+        bgcolor: 'background.default',
+        height: '100vh',
+        overflow: 'hidden',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+      }}
+    >
       {/* Sidebar */}
-      <Sidebar 
-        onCreateFolder={handleCreateFolder} 
+      <Sidebar
+        onCreateFolder={handleCreateFolder}
         onFileUpload={handleFileUpload}
         onMenuChange={handleMenuChange}
         selectedMenu={selectedMenu}
       />
 
       {/* Main Content */}
-            <Box
-              component="main"
-              sx={{
-                flexGrow: 1,
-                ml: '220px',
-                mt: '64px',
-                height: 'calc(100vh - 64px)',
-                overflow: 'hidden',
-                p: 2,
-              }}
-            >
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          ml: '220px',
+          mt: '64px',
+          height: 'calc(100vh - 64px)',
+          overflow: 'hidden',
+          p: 2,
+        }}
+      >
         <FileExplorerNew ref={fileExplorerRef} selectedMenu={selectedMenu} />
       </Box>
 
@@ -62,7 +64,7 @@ const HomePage = () => {
       <CreateFolderDialog
         open={createFolderOpen}
         onClose={() => setCreateFolderOpen(false)}
-        onSubmit={async (folderData) => {
+        onSubmit={async folderData => {
           // Use FileExplorerNew's handleCreateFolder function
           if (fileExplorerRef.current?.handleCreateFolder) {
             try {

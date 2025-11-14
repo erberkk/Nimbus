@@ -25,110 +25,110 @@ const OFFICE_DOCUMENT_MAPPINGS = {
 // Monaco Editor language mappings
 const MONACO_LANGUAGE_MAP = {
   // Python
-  'py': 'python',
-  'pyw': 'python',
-  'pyi': 'python',
+  py: 'python',
+  pyw: 'python',
+  pyi: 'python',
   // JavaScript/TypeScript
-  'js': 'javascript',
-  'jsx': 'javascript',
-  'mjs': 'javascript',
-  'cjs': 'javascript',
-  'ts': 'typescript',
-  'tsx': 'typescript',
+  js: 'javascript',
+  jsx: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
   // C#
-  'cs': 'csharp',
-  'csx': 'csharp',
+  cs: 'csharp',
+  csx: 'csharp',
   // Java
-  'java': 'java',
+  java: 'java',
   // Kotlin
-  'kt': 'kotlin',
-  'kts': 'kotlin',
-  'ktm': 'kotlin',
+  kt: 'kotlin',
+  kts: 'kotlin',
+  ktm: 'kotlin',
   // JSON
-  'json': 'json',
-  'jsonc': 'json',
+  json: 'json',
+  jsonc: 'json',
   // Markdown
-  'md': 'markdown',
-  'markdown': 'markdown',
-  'mdown': 'markdown',
-  'mkdn': 'markdown',
+  md: 'markdown',
+  markdown: 'markdown',
+  mdown: 'markdown',
+  mkdn: 'markdown',
   // Text
-  'txt': 'plaintext',
-  'text': 'plaintext',
+  txt: 'plaintext',
+  text: 'plaintext',
   // XML
-  'xml': 'xml',
-  'xsd': 'xml',
-  'xsl': 'xml',
-  'xslt': 'xml',
+  xml: 'xml',
+  xsd: 'xml',
+  xsl: 'xml',
+  xslt: 'xml',
   // HTML
-  'html': 'html',
-  'htm': 'html',
-  'xhtml': 'html',
+  html: 'html',
+  htm: 'html',
+  xhtml: 'html',
   // CSS
-  'css': 'css',
-  'scss': 'scss',
-  'sass': 'sass',
-  'less': 'less',
+  css: 'css',
+  scss: 'scss',
+  sass: 'sass',
+  less: 'less',
   // Shell
-  'sh': 'shell',
-  'bash': 'shell',
-  'zsh': 'shell',
-  'fish': 'shell',
+  sh: 'shell',
+  bash: 'shell',
+  zsh: 'shell',
+  fish: 'shell',
   // YAML
-  'yaml': 'yaml',
-  'yml': 'yaml',
+  yaml: 'yaml',
+  yml: 'yaml',
   // Go
-  'go': 'go',
+  go: 'go',
   // Rust
-  'rs': 'rust',
+  rs: 'rust',
   // PHP
-  'php': 'php',
-  'phtml': 'php',
+  php: 'php',
+  phtml: 'php',
   // Ruby
-  'rb': 'ruby',
-  'rake': 'ruby',
+  rb: 'ruby',
+  rake: 'ruby',
   // Perl
-  'pl': 'perl',
-  'pm': 'perl',
+  pl: 'perl',
+  pm: 'perl',
   // Scala
-  'scala': 'scala',
-  'sc': 'scala',
+  scala: 'scala',
+  sc: 'scala',
   // C/C++
-  'c': 'c',
-  'cpp': 'cpp',
-  'cc': 'cpp',
-  'cxx': 'cpp',
-  'h': 'c',
-  'hpp': 'cpp',
-  'hxx': 'cpp',
+  c: 'c',
+  cpp: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
+  h: 'c',
+  hpp: 'cpp',
+  hxx: 'cpp',
   // SQL
-  'sql': 'sql',
+  sql: 'sql',
   // Vue
-  'vue': 'vue',
+  vue: 'vue',
   // Svelte
-  'svelte': 'svelte',
+  svelte: 'svelte',
   // Swift
-  'swift': 'swift',
+  swift: 'swift',
   // Dart
-  'dart': 'dart',
+  dart: 'dart',
   // Lua
-  'lua': 'lua',
+  lua: 'lua',
   // R
-  'r': 'r',
-  'rdata': 'r',
-  'rds': 'r',
+  r: 'r',
+  rdata: 'r',
+  rds: 'r',
   // Objective-C
-  'm': 'objective-c',
-  'mm': 'objective-cpp',
+  m: 'objective-c',
+  mm: 'objective-cpp',
   // PowerShell
-  'ps1': 'powershell',
-  'psm1': 'powershell',
-  'psd1': 'powershell',
+  ps1: 'powershell',
+  psm1: 'powershell',
+  psd1: 'powershell',
   // Dockerfile
-  'dockerfile': 'dockerfile',
+  dockerfile: 'dockerfile',
   // Makefile
-  'makefile': 'makefile',
-  'mk': 'makefile',
+  makefile: 'makefile',
+  mk: 'makefile',
 };
 
 // Code file extensions for detection
@@ -151,7 +151,7 @@ const matchesOfficePattern = (contentTypeLower, pattern) => {
  */
 export const getMonacoLanguage = (filename = '') => {
   if (!filename) return 'plaintext';
-  
+
   const ext = filename.split('.').pop()?.toLowerCase();
   return MONACO_LANGUAGE_MAP[ext] || 'plaintext';
 };
@@ -169,9 +169,9 @@ export const isCodeFile = (contentType, filename = '') => {
       return true;
     }
   }
-  
+
   if (!contentType) return false;
-  
+
   const contentTypeLower = contentType.toLowerCase();
   const codeContentTypes = [
     'text/plain',
@@ -192,7 +192,7 @@ export const isCodeFile = (contentType, filename = '') => {
     'application/x-yaml',
     'text/yaml',
   ];
-  
+
   return codeContentTypes.some(type => contentTypeLower.includes(type));
 };
 
@@ -210,40 +210,46 @@ export const getFileType = (contentType, filename = '') => {
     }
     return 'unknown';
   }
-  
+
   const contentTypeLower = contentType.toLowerCase();
   const filenameLower = filename.toLowerCase();
-  
+
   if (isCodeFile(contentType, filename)) {
     return 'code';
   }
-  
+
   if (contentTypeLower.includes('pdf')) return 'pdf';
   if (contentTypeLower.startsWith('image/')) return 'image';
   if (contentTypeLower.startsWith('audio/')) return 'audio';
   if (contentTypeLower.startsWith('video/')) return 'video';
-  
+
   // Word documents
-  if (matchesOfficePattern(contentTypeLower, 'wordprocessingml.document') ||
-      (contentTypeLower === 'application/msword' && filenameLower.endsWith('.docx'))) {
+  if (
+    matchesOfficePattern(contentTypeLower, 'wordprocessingml.document') ||
+    (contentTypeLower === 'application/msword' && filenameLower.endsWith('.docx'))
+  ) {
     return 'word-docx';
   }
   if (contentTypeLower === 'application/msword' && filenameLower.endsWith('.doc')) {
     return 'word-doc'; // Legacy format - no preview
   }
-  
+
   // Excel files
-  if (matchesOfficePattern(contentTypeLower, 'spreadsheetml.sheet') ||
-      contentTypeLower === 'application/vnd.ms-excel') {
+  if (
+    matchesOfficePattern(contentTypeLower, 'spreadsheetml.sheet') ||
+    contentTypeLower === 'application/vnd.ms-excel'
+  ) {
     return 'excel';
   }
-  
+
   // PowerPoint files
-  if (matchesOfficePattern(contentTypeLower, 'presentationml.presentation') ||
-      contentTypeLower === 'application/vnd.ms-powerpoint') {
+  if (
+    matchesOfficePattern(contentTypeLower, 'presentationml.presentation') ||
+    contentTypeLower === 'application/vnd.ms-powerpoint'
+  ) {
     return 'powerpoint';
   }
-  
+
   return 'unknown';
 };
 
@@ -255,7 +261,17 @@ export const getFileType = (contentType, filename = '') => {
  */
 export const isPreviewable = (contentType, filename = '') => {
   const fileType = getFileType(contentType, filename);
-  const previewableTypes = ['pdf', 'image', 'audio', 'video', 'word-docx', 'word-doc', 'excel', 'powerpoint', 'code'];
+  const previewableTypes = [
+    'pdf',
+    'image',
+    'audio',
+    'video',
+    'word-docx',
+    'word-doc',
+    'excel',
+    'powerpoint',
+    'code',
+  ];
   return previewableTypes.includes(fileType);
 };
 
@@ -267,10 +283,10 @@ export const isPreviewable = (contentType, filename = '') => {
  */
 export const isAskableFile = (contentType, filename = '') => {
   if (!contentType) return false;
-  
+
   const contentTypeLower = contentType.toLowerCase();
   const filenameLower = filename.toLowerCase();
-  
+
   return (
     contentTypeLower.includes('pdf') ||
     contentTypeLower.includes('document') ||
@@ -291,31 +307,37 @@ export const isEditable = (contentType, filename = '') => {
   if (isCodeFile(contentType, filename)) {
     return true;
   }
-  
+
   // Check if it's an Office document (editable with OnlyOffice)
   if (!contentType) return false;
-  
+
   const contentTypeLower = contentType.toLowerCase();
   const filenameLower = filename.toLowerCase();
-  
+
   // Word documents (.docx)
-  if (contentTypeLower.includes('wordprocessingml.document') ||
-      (contentTypeLower === 'application/msword' && filenameLower.endsWith('.docx'))) {
+  if (
+    contentTypeLower.includes('wordprocessingml.document') ||
+    (contentTypeLower === 'application/msword' && filenameLower.endsWith('.docx'))
+  ) {
     return true;
   }
-  
+
   // Excel files (.xlsx)
-  if (contentTypeLower.includes('spreadsheetml.sheet') ||
-      contentTypeLower === 'application/vnd.ms-excel') {
+  if (
+    contentTypeLower.includes('spreadsheetml.sheet') ||
+    contentTypeLower === 'application/vnd.ms-excel'
+  ) {
     return true;
   }
-  
+
   // PowerPoint files (.pptx)
-  if (contentTypeLower.includes('presentationml.presentation') ||
-      contentTypeLower === 'application/vnd.ms-powerpoint') {
+  if (
+    contentTypeLower.includes('presentationml.presentation') ||
+    contentTypeLower === 'application/vnd.ms-powerpoint'
+  ) {
     return true;
   }
-  
+
   return false;
 };
 
@@ -324,7 +346,7 @@ export const isEditable = (contentType, filename = '') => {
  * @param {number} bytes - File size in bytes
  * @returns {string} Formatted file size (e.g., "1.5 MB")
  */
-export const formatFileSize = (bytes) => {
+export const formatFileSize = bytes => {
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -340,21 +362,21 @@ export const formatFileSize = (bytes) => {
  */
 export const formatDate = (dateString, options = {}) => {
   if (!dateString) return '';
-  
+
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '';
-  
+
   // If relative format is requested (default)
   if (options.relative !== false) {
     const now = new Date();
     const diff = now - date;
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
+
     if (days === 0) return 'Bugün';
     if (days === 1) return 'Dün';
     if (days < 7) return `${days} gün önce`;
   }
-  
+
   // Return localized date string
   return date.toLocaleDateString('tr-TR', {
     day: '2-digit',
@@ -379,33 +401,39 @@ export const formatContentType = (contentType, filename = '') => {
     }
     return 'dosya';
   }
-  
+
   const contentTypeLower = contentType.toLowerCase();
   const filenameLower = filename.toLowerCase();
-  
-  if (matchesOfficePattern(contentTypeLower, 'presentationml.presentation') ||
-      contentTypeLower === 'application/vnd.ms-powerpoint') {
+
+  if (
+    matchesOfficePattern(contentTypeLower, 'presentationml.presentation') ||
+    contentTypeLower === 'application/vnd.ms-powerpoint'
+  ) {
     return OFFICE_DOCUMENT_MAPPINGS.powerpoint.extension;
   }
-  
-  if (matchesOfficePattern(contentTypeLower, 'spreadsheetml.sheet') ||
-      contentTypeLower === 'application/vnd.ms-excel') {
+
+  if (
+    matchesOfficePattern(contentTypeLower, 'spreadsheetml.sheet') ||
+    contentTypeLower === 'application/vnd.ms-excel'
+  ) {
     return OFFICE_DOCUMENT_MAPPINGS.excel.extension;
   }
-  
-  if (matchesOfficePattern(contentTypeLower, 'wordprocessingml.document') ||
-      (contentTypeLower === 'application/msword' && filenameLower.endsWith('.docx'))) {
+
+  if (
+    matchesOfficePattern(contentTypeLower, 'wordprocessingml.document') ||
+    (contentTypeLower === 'application/msword' && filenameLower.endsWith('.docx'))
+  ) {
     return OFFICE_DOCUMENT_MAPPINGS.word.extension;
   }
-  
+
   if (contentTypeLower === 'application/msword' && filenameLower.endsWith('.doc')) {
     return 'doc';
   }
-  
+
   if (contentTypeLower.includes('pdf')) {
     return 'pdf';
   }
-  
+
   if (contentTypeLower.startsWith('image/')) {
     const imageTypes = {
       'image/jpeg': 'jpg',
@@ -419,7 +447,7 @@ export const formatContentType = (contentType, filename = '') => {
     };
     return imageTypes[contentTypeLower] || contentTypeLower.split('/')[1] || 'img';
   }
-  
+
   if (contentTypeLower.startsWith('audio/')) {
     const audioTypes = {
       'audio/mpeg': 'mp3',
@@ -433,7 +461,7 @@ export const formatContentType = (contentType, filename = '') => {
     };
     return audioTypes[contentTypeLower] || contentTypeLower.split('/')[1] || 'audio';
   }
-  
+
   if (contentTypeLower.startsWith('video/')) {
     const videoTypes = {
       'video/mp4': 'mp4',
@@ -446,7 +474,7 @@ export const formatContentType = (contentType, filename = '') => {
     };
     return videoTypes[contentTypeLower] || contentTypeLower.split('/')[1] || 'video';
   }
-  
+
   if (contentTypeLower.includes('zip')) {
     return 'zip';
   }
@@ -459,7 +487,7 @@ export const formatContentType = (contentType, filename = '') => {
   if (contentTypeLower.includes('gzip')) {
     return 'gz';
   }
-  
+
   if (contentTypeLower.includes('text/')) {
     if (contentTypeLower.includes('csv')) {
       return 'csv';
@@ -469,11 +497,11 @@ export const formatContentType = (contentType, filename = '') => {
     }
     return contentTypeLower.split('/')[1] || 'txt';
   }
-  
+
   if (contentTypeLower.includes('rtf')) {
     return 'rtf';
   }
-  
+
   const parts = contentTypeLower.split('/');
   if (parts.length > 1) {
     const subtype = parts[1].split(';')[0].trim();
@@ -486,12 +514,11 @@ export const formatContentType = (contentType, filename = '') => {
     }
     return subtype;
   }
-  
+
   if (filename) {
     const ext = filename.split('.').pop()?.toLowerCase();
     return ext || 'dosya';
   }
-  
+
   return 'dosya';
 };
-

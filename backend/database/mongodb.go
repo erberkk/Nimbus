@@ -14,6 +14,7 @@ var DB *mongo.Database
 var UserCollection *mongo.Collection
 var FileCollection *mongo.Collection
 var FolderCollection *mongo.Collection
+var ConversationCollection *mongo.Collection
 var Client *mongo.Client
 
 func Connect(cfg *config.Config) error {
@@ -36,6 +37,7 @@ func Connect(cfg *config.Config) error {
 	UserCollection = DB.Collection("users")
 	FileCollection = DB.Collection("files")
 	FolderCollection = DB.Collection("folders")
+	ConversationCollection = DB.Collection("conversations")
 
 	log.Println("✅ MongoDB bağlantısı başarılı!")
 	return nil

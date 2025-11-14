@@ -61,18 +61,18 @@ func GetResourceShares() fiber.Handler {
 
 			// For folders, return access list info
 			users, err := services.AccessControlServiceInstance.GetAccessibleUsers("folder", resourceID)
-			if err != nil {
+				if err != nil {
 				log.Printf("Error getting accessible users: %v", err)
 				users = []models.User{}
 			}
 
 			sharedUsers := make([]models.UserResponse, 0, len(users))
 			for _, user := range users {
-				sharedUsers = append(sharedUsers, models.UserResponse{
-					ID:    user.ID.Hex(),
-					Email: user.Email,
-					Name:  user.Name,
-				})
+					sharedUsers = append(sharedUsers, models.UserResponse{
+						ID:    user.ID.Hex(),
+						Email: user.Email,
+						Name:  user.Name,
+					})
 			}
 
 			return c.JSON(fiber.Map{
@@ -87,18 +87,18 @@ func GetResourceShares() fiber.Handler {
 
 		// For files, return access list info
 		users, err := services.AccessControlServiceInstance.GetAccessibleUsers("file", resourceID)
-		if err != nil {
+			if err != nil {
 			log.Printf("Error getting accessible users: %v", err)
 			users = []models.User{}
 		}
 
 		sharedUsers := make([]models.UserResponse, 0, len(users))
 		for _, user := range users {
-			sharedUsers = append(sharedUsers, models.UserResponse{
-				ID:    user.ID.Hex(),
-				Email: user.Email,
-				Name:  user.Name,
-			})
+				sharedUsers = append(sharedUsers, models.UserResponse{
+					ID:    user.ID.Hex(),
+					Email: user.Email,
+					Name:  user.Name,
+				})
 		}
 
 		return c.JSON(fiber.Map{

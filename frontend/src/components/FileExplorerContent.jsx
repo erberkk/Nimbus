@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Typography,
@@ -46,6 +47,7 @@ const FileExplorerContent = ({
   onPreview,
   onEdit,
 }) => {
+  const { t } = useTranslation();
   // Chat panel state
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -55,7 +57,7 @@ const FileExplorerContent = ({
   const [selectedFileForInfo, setSelectedFileForInfo] = useState(null);
 
   // Nimbus'a Sor fonksiyonu
-  const handleAskNimbus = (file) => {
+  const handleAskNimbus = file => {
     setSelectedFile(file);
     setChatPanelOpen(true);
   };
@@ -67,7 +69,7 @@ const FileExplorerContent = ({
   };
 
   // File info panel açma
-  const handleFileInfo = (file) => {
+  const handleFileInfo = file => {
     setSelectedFileForInfo(file);
     setInfoPanelOpen(true);
   };
@@ -79,16 +81,16 @@ const FileExplorerContent = ({
   };
 
   // Direkt dosya yükleme fonksiyonu
-  const handleDirectFileUpload = async (files) => {
+  const handleDirectFileUpload = async files => {
     try {
-      window.toast?.info(`${files.length} dosya yükleniyor...`);
-      
+      window.toast?.info(t('folder.uploading', { count: files.length }));
+
       for (const file of files) {
         await uploadSingleFile(file);
       }
-      
-      window.toast?.success(`${files.length} dosya başarıyla yüklendi!`);
-      
+
+      window.toast?.success(t('folder.upload_success', { count: files.length }));
+
       // Yükleme tamamlandıktan sonra içeriği yenile
       if (onUploadSuccess) {
         onUploadSuccess();
@@ -96,14 +98,14 @@ const FileExplorerContent = ({
         window.location.reload(); // Fallback
       }
     } catch (error) {
-      window.toast?.error(`Dosya yükleme hatası: ${error.message}`);
+      window.toast?.error(t('folder.upload_error', { error: error.message }));
     }
   };
 
   // Tek dosya yükleme fonksiyonu
-  const uploadSingleFile = async (file) => {
+  const uploadSingleFile = async file => {
     const { fileApi } = await import('../services/api');
-    
+
     // Presigned URL al
     const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type);
     const { presigned_url, minio_path } = presignedResponse;
@@ -129,7 +131,7 @@ const FileExplorerContent = ({
       content_type: file.type,
       minio_path: minio_path,
     };
-    
+
     if (currentFolder && currentFolder.id) {
       fileData.folder_id = currentFolder.id;
     }
@@ -147,17 +149,17 @@ const FileExplorerContent = ({
   return (
     <Box
       sx={{ position: 'relative', height: '100%', width: '100%' }}
-      onContextMenu={(e) => {
+      onContextMenu={e => {
         e.preventDefault();
         onMenuOpen(e, null);
       }}
-      onDragEnter={(e) => {
+      onDragEnter={e => {
         e.preventDefault();
         e.stopPropagation();
         const overlay = document.getElementById('drag-overlay');
         if (overlay) overlay.style.display = 'flex';
       }}
-      onDragLeave={(e) => {
+      onDragLeave={e => {
         e.preventDefault();
         e.stopPropagation();
         if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -165,11 +167,11 @@ const FileExplorerContent = ({
           if (overlay) overlay.style.display = 'none';
         }
       }}
-      onDragOver={(e) => {
+      onDragOver={e => {
         e.preventDefault();
         e.stopPropagation();
       }}
-      onDrop={async (e) => {
+      onDrop={async e => {
         e.preventDefault();
         e.stopPropagation();
         const overlay = document.getElementById('drag-overlay');
@@ -280,7 +282,7 @@ const FileExplorerContent = ({
                   fontSize: '1rem',
                 }}
               >
-                Dosyaları buraya bırakın
+                {t('folder.drag_drop')}
               </Typography>
               <Typography
                 variant="body2"
@@ -289,7 +291,7 @@ const FileExplorerContent = ({
                   fontSize: '0.8rem',
                 }}
               >
-                Sürükleyip bıraktığınız dosyalar yüklenecek
+                {t('folder.drag_drop_hint')}
               </Typography>
             </Box>
           </Box>
@@ -298,13 +300,15 @@ const FileExplorerContent = ({
 
       {/* Empty State - Always show when no content */}
       {fileExplorer.folders.length === 0 && fileExplorer.files.length === 0 && (
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 400,
-          mt: 4
-        }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 400,
+            mt: 4,
+          }}
+        >
           <MotionBox
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -315,10 +319,12 @@ const FileExplorerContent = ({
           >
             <CreateNewFolderIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 1.5 }} />
             <Typography variant="h6" color="text.secondary" gutterBottom>
-              {navigation.getCurrentNavState().currentFolder ? 'Bu klasör boş' : 'Henüz klasör veya dosya yok'}
+              {navigation.getCurrentNavState().currentFolder
+                ? t('folder.empty')
+                : t('folder.no_items')}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Sağ tıklayarak yeni klasör oluşturun veya dosya yükleyin
+              {t('folder.empty_hint')}
             </Typography>
           </MotionBox>
         </Box>
@@ -336,7 +342,7 @@ const FileExplorerContent = ({
                   color="text.secondary"
                   sx={{ mb: 1.5, fontWeight: 500 }}
                 >
-                  Klasörler
+                  {t('folder.title')}
                 </Typography>
                 <Grid container spacing={2}>
                   <AnimatePresence>
@@ -370,7 +376,7 @@ const FileExplorerContent = ({
                   color="text.secondary"
                   sx={{ mb: 1.5, fontWeight: 500 }}
                 >
-                  Dosyalar
+                  {t('folder.files_title')}
                 </Typography>
                 <Grid container spacing={2}>
                   <AnimatePresence>
@@ -425,7 +431,7 @@ const FileExplorerContent = ({
                       hover
                       sx={{ cursor: 'pointer' }}
                       onClick={() => onFolderOpen(folder)}
-                      onContextMenu={(e) => onMenuOpen(e, { ...folder, type: 'folder' })}
+                      onContextMenu={e => onMenuOpen(e, { ...folder, type: 'folder' })}
                     >
                       <TableCell padding="checkbox">
                         <Checkbox />
@@ -443,7 +449,9 @@ const FileExplorerContent = ({
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {folder.item_count || 0} öğe
+                          {folder.item_count
+                            ? t('folder.items', { count: folder.item_count })
+                            : t('folder.items_zero')}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -454,7 +462,7 @@ const FileExplorerContent = ({
                       <TableCell padding="checkbox">
                         <IconButton
                           size="small"
-                          onClick={(e) => {
+                          onClick={e => {
                             e.stopPropagation();
                             onMenuOpen(e, { ...folder, type: 'folder' });
                           }}
@@ -470,9 +478,9 @@ const FileExplorerContent = ({
                     const fileIsPreviewable = isPreviewable(file?.content_type, file?.filename);
 
                     return (
-                      <TableRow 
-                        key={file.id} 
-                        hover 
+                      <TableRow
+                        key={file.id}
+                        hover
                         onClick={() => {
                           if (fileIsPreviewable && onPreview) {
                             onPreview(file);
@@ -482,7 +490,7 @@ const FileExplorerContent = ({
                           cursor: fileIsPreviewable ? 'pointer' : 'default',
                         }}
                       >
-                        <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                        <TableCell padding="checkbox" onClick={e => e.stopPropagation()}>
                           <Checkbox />
                         </TableCell>
                         <TableCell>
@@ -491,25 +499,25 @@ const FileExplorerContent = ({
                             <Typography variant="body2">{file.filename}</Typography>
                           </Box>
                         </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {file.owner?.name || 'Bilinmiyor'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {formatFileSize(file.size)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {formatDate(file.updated_at)}
-                        </Typography>
-                      </TableCell>
-                        <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {file.owner?.name || 'Bilinmiyor'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {formatFileSize(file.size)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {formatDate(file.updated_at)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell padding="checkbox" onClick={e => e.stopPropagation()}>
                           <IconButton
                             size="small"
-                            onClick={(e) => {
+                            onClick={e => {
                               e.stopPropagation();
                               onMenuOpen(e, { ...file, type: 'file' });
                             }}
@@ -528,11 +536,7 @@ const FileExplorerContent = ({
       ) : null}
 
       {/* Nimbus Chat Panel */}
-      <NimbusChatPanel
-        isOpen={chatPanelOpen}
-        onClose={handleCloseChatPanel}
-        file={selectedFile}
-      />
+      <NimbusChatPanel isOpen={chatPanelOpen} onClose={handleCloseChatPanel} file={selectedFile} />
 
       {/* File Info Panel */}
       <FileInfoPanel

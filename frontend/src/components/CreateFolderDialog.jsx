@@ -44,13 +44,13 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Yeni Klasör Oluştur</DialogTitle>
+      <DialogTitle>{t('folder.create')}</DialogTitle>
       <DialogContent>
         <Box sx={{ mt: 2 }}>
           <TextField
             autoFocus
             fullWidth
-            label="Klasör Adı"
+            label={t('folder.name')}
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyPress={e => {
@@ -58,12 +58,12 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
                 handleSubmit();
               }
             }}
-            placeholder="Belgeler, Resimler, Projeler..."
+            placeholder={t('folder.name_placeholder')}
             sx={{ mb: 3 }}
           />
 
           <Box sx={{ mb: 2 }}>
-            <Box sx={{ mb: 1.5, fontWeight: 600, fontSize: '0.9rem' }}>Klasör Rengi</Box>
+            <Box sx={{ mb: 1.5, fontWeight: 600, fontSize: '0.9rem' }}>{t('folder.color')}</Box>
             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
               {FOLDER_COLORS.map(c => (
                 <Box
@@ -118,8 +118,10 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
               <FolderIcon sx={{ fontSize: 36, color: 'white' }} />
             </Box>
             <Box>
-              <Box sx={{ fontWeight: 600, fontSize: '1.1rem' }}>{name || 'Yeni Klasör'}</Box>
-              <Box sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>0 öğe</Box>
+              <Box sx={{ fontWeight: 600, fontSize: '1.1rem' }}>{name || t('folder.new')}</Box>
+              <Box sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
+                {t('folder.items_zero')}
+              </Box>
             </Box>
           </Box>
         </Box>

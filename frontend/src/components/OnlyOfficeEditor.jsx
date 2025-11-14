@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogTitle,
@@ -22,6 +23,7 @@ const Transition = React.forwardRef(function Transition(props, ref) {
 const ONLYOFFICE_SERVER_URL = import.meta.env.VITE_ONLYOFFICE_SERVER_URL || 'http://localhost:5000';
 
 const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
+  const { t } = useTranslation();
   const editorRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -36,7 +38,7 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
     }
 
     const scriptId = 'onlyoffice-editor-script';
-    
+
     if (document.getElementById(scriptId) && window.DocsAPI && window.DocsAPI.DocEditor) {
       setScriptLoaded(true);
       setLoading(false);
@@ -53,24 +55,24 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
     script.id = scriptId;
     script.src = `${ONLYOFFICE_SERVER_URL}/web-apps/apps/api/documents/api.js`;
     script.async = true;
-    
+
     script.onload = () => {
       setTimeout(() => {
         if (window.DocsAPI && window.DocsAPI.DocEditor) {
           setScriptLoaded(true);
           setLoading(false);
         } else {
-          setError('OnlyOffice Document Server API yüklenemedi');
+          setError(t('onlyoffice.api_error'));
           setLoading(false);
-          window.toast?.error('OnlyOffice Document Server API yüklenemedi');
+          window.toast?.error(t('onlyoffice.api_error'));
         }
       }, 100);
     };
-    
+
     script.onerror = () => {
-      setError('OnlyOffice Document Server bağlantı hatası');
+      setError(t('onlyoffice.connection_error'));
       setLoading(false);
-      window.toast?.error('OnlyOffice Document Server\'a bağlanılamadı');
+      window.toast?.error(t('onlyoffice.connection_failed'));
     };
 
     document.head.appendChild(script);
@@ -94,19 +96,19 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
         setError(null);
 
         const configData = await fileApi.getOnlyOfficeConfig(file.id, mode);
-        
+
         if (!isMounted) return;
-        
+
         if (!configData || !configData.document || !configData.document.url) {
           throw new Error('Geçersiz OnlyOffice config: document URL bulunamadı');
         }
-        
+
         setConfig(configData);
         setLoading(false);
       } catch (err) {
         if (!isMounted) return;
-        setError('Dosya düzenleme konfigürasyonu yüklenemedi');
-        window.toast?.error('Dosya düzenleme başlatılamadı');
+        setError(t('onlyoffice.config_error'));
+        window.toast?.error(t('onlyoffice.start_error'));
         setLoading(false);
       }
     };
@@ -147,9 +149,9 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
     return () => clearTimeout(timeoutId);
   }, [config, loading, error]);
 
-  const initializeEditor = (editorConfig) => {
+  const initializeEditor = editorConfig => {
     if (!editorRef.current || !window.DocsAPI || !window.DocsAPI.DocEditor) {
-      setError('OnlyOffice editor yüklenemedi');
+      setError(t('onlyoffice.editor_error'));
       setLoading(false);
       return;
     }
@@ -166,7 +168,8 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
         editorInstanceRef.current = null;
       }
 
-      const editorContainerId = editorRef.current.id || `onlyoffice-editor-container-${file?.id || 'default'}`;
+      const editorContainerId =
+        editorRef.current.id || `onlyoffice-editor-container-${file?.id || 'default'}`;
       const editor = new window.DocsAPI.DocEditor(editorContainerId, editorConfig);
 
       if (!editor) {
@@ -174,22 +177,22 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
       }
 
       editorInstanceRef.current = editor;
-      
+
       let eventSetupAttempts = 0;
       const maxEventSetupAttempts = 5;
-      
+
       const setupEvents = () => {
         eventSetupAttempts++;
-        
+
         if (editor && editor.events && typeof editor.events.on === 'function') {
           try {
             editor.events.on('onDocumentReady', () => {
               setLoading(false);
             });
 
-            editor.events.on('onError', (event) => {
+            editor.events.on('onError', event => {
               setError('Editor hatası oluştu');
-              window.toast?.error('Dosya düzenlenirken hata oluştu');
+              window.toast?.error(t('onlyoffice.edit_error'));
             });
 
             editor.events.on('onDocumentStateChange', () => {
@@ -208,7 +211,7 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
       setupEvents();
     } catch (err) {
       setError(`Editor başlatılamadı: ${err.message || 'Bilinmeyen hata'}`);
-      window.toast?.error('Dosya düzenleyici başlatılamadı');
+      window.toast?.error(t('onlyoffice.init_error'));
       setLoading(false);
     }
   };
@@ -269,7 +272,8 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="h6" noWrap title={file.filename}>
-            {file.filename} - {mode === 'edit' ? 'Düzenle' : 'Önizle'}
+            {file.filename} -{' '}
+            {mode === 'edit' ? t('onlyoffice.edit_mode') : t('onlyoffice.preview_mode')}
           </Typography>
           <IconButton onClick={handleClose} size="small">
             <CloseIcon />
@@ -277,7 +281,10 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
         </Box>
       </DialogTitle>
 
-      <DialogContent dividers sx={{ p: 0, position: 'relative', height: 'calc(95vh - 120px)', overflow: 'hidden' }}>
+      <DialogContent
+        dividers
+        sx={{ p: 0, position: 'relative', height: 'calc(95vh - 120px)', overflow: 'hidden' }}
+      >
         {loading && (
           <Box
             sx={{
@@ -291,7 +298,7 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
           >
             <CircularProgress size={48} />
             <Typography variant="body2" color="text.secondary">
-              OnlyOffice editor yükleniyor...
+              {t('onlyoffice.loading')}
             </Typography>
           </Box>
         )}
@@ -361,4 +368,3 @@ const OnlyOfficeEditor = ({ open, onClose, file, onSave, mode = 'edit' }) => {
 };
 
 export default OnlyOfficeEditor;
-

@@ -34,7 +34,10 @@ const SharePage = () => {
     if (!isAuthenticated) {
       // Kullanıcı giriş yapmamışsa login sayfasına yönlendir
       navigate('/login', {
-        state: { from: `/share/${publicLink}`, message: 'Bu dosyayı görüntülemek için giriş yapmanız gerekiyor.' }
+        state: {
+          from: `/share/${publicLink}`,
+          message: 'Bu dosyayı görüntülemek için giriş yapmanız gerekiyor.',
+        },
       });
       return;
     }
@@ -87,9 +90,7 @@ const SharePage = () => {
   if (!resource) {
     return (
       <Box sx={{ p: 3, maxWidth: 600, mx: 'auto', mt: 4 }}>
-        <Alert severity="warning">
-          Kaynak bulunamadı veya erişim izniniz yok
-        </Alert>
+        <Alert severity="warning">Kaynak bulunamadı veya erişim izniniz yok</Alert>
         <Button variant="contained" onClick={() => navigate('/dashboard')} sx={{ mt: 2 }}>
           Ana Sayfaya Dön
         </Button>
@@ -144,14 +145,15 @@ const SharePage = () => {
           <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
             <Button
               variant="contained"
-              onClick={() => navigate(`/dashboard?resource=${resource.resource.id}&type=${resource.resource_type}`)}
+              onClick={() =>
+                navigate(
+                  `/dashboard?resource=${resource.resource.id}&type=${resource.resource_type}`
+                )
+              }
             >
               Görüntüle
             </Button>
-            <Button
-              variant="outlined"
-              onClick={() => navigate('/dashboard')}
-            >
+            <Button variant="outlined" onClick={() => navigate('/dashboard')}>
               Ana Sayfaya Dön
             </Button>
           </Box>

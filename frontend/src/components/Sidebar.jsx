@@ -49,7 +49,7 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
   const [storageInfo, setStorageInfo] = useState({
     usage: '0 MB',
     usageGB: 0,
-    percent: 0
+    percent: 0,
   });
 
   useEffect(() => {
@@ -70,7 +70,7 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
       setStorageInfo({
         usage: response.usage || '0 MB',
         usageGB: usedGB,
-        percent: Math.min(percent, 100) // Maksimum %100
+        percent: Math.min(percent, 100), // Maksimum %100
       });
     } catch (error) {
       console.error('Depolama bilgisi yüklenemedi:', error);
@@ -78,12 +78,12 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
       setStorageInfo({
         usage: '0 MB',
         usageGB: 0,
-        percent: 0
+        percent: 0,
       });
     }
   };
 
-  const handleNewMenuOpen = (event) => {
+  const handleNewMenuOpen = event => {
     setNewMenuAnchor(event.currentTarget);
   };
 
@@ -123,23 +123,23 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleNewMenuOpen}
-                 sx={{
-                   width: 'auto',
-                   px: 2,
-                   height: 36,
-                   borderRadius: 1.5,
-                   backgroundColor: 'white',
-                   color: '#667eea',
-                   textTransform: 'none',
-                   fontSize: '0.85rem',
-                   fontWeight: 600,
-                   boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
-                   '& .MuiSvgIcon-root': { color: '#667eea' },
-                   '&:hover': {
-                     backgroundColor: 'rgba(255,255,255,0.95)',
-                     boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
-                   },
-                 }}
+          sx={{
+            width: 'auto',
+            px: 2,
+            height: 36,
+            borderRadius: 1.5,
+            backgroundColor: 'white',
+            color: '#667eea',
+            textTransform: 'none',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+            '& .MuiSvgIcon-root': { color: '#667eea' },
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.95)',
+              boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
+            },
+          }}
         >
           Yeni
         </Button>
@@ -163,7 +163,7 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
               <CreateNewFolderIcon sx={{ fontSize: 20, color: '#4285f4' }} />
             </ListItemIcon>
             <ListItemText
-              primary="Yeni klasör"
+              primary={t('folder.new_folder_menu')}
               primaryTypographyProps={{ fontSize: '0.9rem' }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
@@ -178,7 +178,7 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
               <CloudUploadIcon sx={{ fontSize: 20, color: '#34a853' }} />
             </ListItemIcon>
             <ListItemText
-              primary="Dosya yükleme"
+              primary={t('folder.upload_menu')}
               primaryTypographyProps={{ fontSize: '0.9rem' }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
@@ -191,7 +191,7 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
               <FolderIcon sx={{ fontSize: 20, color: '#ea4335' }} />
             </ListItemIcon>
             <ListItemText
-              primary="Klasör yükleme"
+              primary={t('folder.upload')}
               primaryTypographyProps={{ fontSize: '0.9rem' }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
@@ -263,28 +263,32 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
       <Box sx={{ px: 2, py: 1.5, mt: 'auto', mb: 1, flexShrink: 0 }}>
         <Divider sx={{ mb: 1.5, borderColor: 'rgba(255,255,255,0.24)' }} />
         <Box sx={{ bgcolor: 'white', borderRadius: 2, p: 1.25 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
-          <CloudQueueIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 1 }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
+            <CloudQueueIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 1 }} />
             <Typography variant="body2" color="text.secondary" fontWeight={600} fontSize="0.8rem">
-            {t('sidebar.storage') || 'Storage'}
-          </Typography>
-        </Box>
-        <LinearProgress
-          variant="determinate"
-          value={storageInfo.percent}
-          sx={{
-            height: 6,
-            borderRadius: 4,
-            bgcolor: 'grey.200',
-            '& .MuiLinearProgress-bar': {
+              {t('sidebar.storage') || 'Storage'}
+            </Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={storageInfo.percent}
+            sx={{
+              height: 6,
               borderRadius: 4,
+              bgcolor: 'grey.200',
+              '& .MuiLinearProgress-bar': {
+                borderRadius: 4,
                 backgroundColor: '#FBBF24',
-            },
-          }}
-        />
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontSize: '0.7rem' }}>
-          15 GB {t('sidebar.of') || 'of'} {storageInfo.usage} {t('sidebar.used') || 'used'}
-        </Typography>
+              },
+            }}
+          />
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ mt: 0.5, display: 'block', fontSize: '0.7rem' }}
+          >
+            15 GB {t('sidebar.of') || 'of'} {storageInfo.usage} {t('sidebar.used') || 'used'}
+          </Typography>
         </Box>
       </Box>
     </Box>

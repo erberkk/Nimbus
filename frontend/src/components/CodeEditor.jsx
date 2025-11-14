@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Editor from '@monaco-editor/react';
 import { Box, CircularProgress } from '@mui/material';
 import { getMonacoLanguage } from '../utils/fileUtils';
 
 const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
+  const { t } = useTranslation();
   const [editorContent, setEditorContent] = useState(content || '');
   const [isModified, setIsModified] = useState(false);
   const editorRef = useRef(null);
@@ -14,7 +16,7 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
     if (content !== undefined && editorRef.current) {
       const editor = editorRef.current;
       const currentValue = editor.getValue();
-      
+
       // Only update if content actually changed
       if (currentValue !== content) {
         // Save cursor position, selection, and scroll position BEFORE updating
@@ -22,7 +24,7 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
         const scrollTop = editor.getScrollTop();
         const scrollLeft = editor.getScrollLeft();
         const selection = editor.getSelection();
-        
+
         // Store state to restore after content update
         preservedStateRef.current = {
           position,
@@ -30,7 +32,7 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
           scrollLeft,
           selection,
         };
-        
+
         // Update editor content - this will trigger onChange
         setEditorContent(content);
         setIsModified(false);
@@ -49,14 +51,14 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
   useEffect(() => {
     if (editorRef.current && preservedStateRef.current && editorContent) {
       const { position, scrollTop, scrollLeft, selection } = preservedStateRef.current;
-      
+
       const timeoutId = setTimeout(() => {
         if (editorRef.current) {
           try {
             // Restore scroll position first
             editorRef.current.setScrollTop(scrollTop);
             editorRef.current.setScrollLeft(scrollLeft);
-            
+
             // Restore cursor position
             if (position) {
               // Validate position is within document bounds
@@ -64,10 +66,7 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
               if (model) {
                 const lineCount = model.getLineCount();
                 const validLine = Math.min(position.lineNumber, lineCount);
-                const validColumn = Math.min(
-                  position.column,
-                  model.getLineMaxColumn(validLine)
-                );
+                const validColumn = Math.min(position.column, model.getLineMaxColumn(validLine));
                 editorRef.current.setPosition({
                   lineNumber: validLine,
                   column: validColumn,
@@ -75,12 +74,12 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
                 editorRef.current.revealLineInCenter(validLine);
               }
             }
-            
+
             // Restore selection if it exists
             if (selection) {
               editorRef.current.setSelection(selection);
             }
-            
+
             // Focus editor
             editorRef.current.focus();
           } catch (error) {
@@ -90,12 +89,12 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
         // Clear preserved state
         preservedStateRef.current = null;
       }, 10);
-      
+
       return () => clearTimeout(timeoutId);
     }
   }, [editorContent]);
 
-  const handleEditorChange = (value) => {
+  const handleEditorChange = value => {
     setEditorContent(value || '');
     setIsModified(value !== content);
     if (onChange) {
@@ -105,7 +104,7 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
 
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
-    
+
     // Add save shortcut (Ctrl+S / Cmd+S)
     if (onSave && !readOnly) {
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -147,7 +146,9 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
           snippetSuggestions: 'top',
         }}
         loading={
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+          <Box
+            sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}
+          >
             <CircularProgress />
           </Box>
         }
@@ -192,8 +193,8 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
             }}
           />
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ fontWeight: 600, mb: 0.25 }}>Kaydedilmemiş değişiklikler</Box>
-            <Box sx={{ fontSize: '0.7rem', opacity: 0.8 }}>Ctrl+S ile kaydet</Box>
+            <Box sx={{ fontWeight: 600, mb: 0.25 }}>{t('ai.unsaved_changes')}</Box>
+            <Box sx={{ fontSize: '0.7rem', opacity: 0.8 }}>{t('ai.save_hint')}</Box>
           </Box>
         </Box>
       )}
@@ -202,4 +203,3 @@ const CodeEditor = ({ file, content, readOnly = false, onChange, onSave }) => {
 };
 
 export default CodeEditor;
-

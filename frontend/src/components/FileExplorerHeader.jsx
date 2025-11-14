@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Typography,
@@ -26,6 +27,7 @@ const FileExplorerHeader = ({
   onFileUpload,
   onViewModeChange,
 }) => {
+  const { t } = useTranslation();
   return (
     <>
       {/* Top Toolbar */}
@@ -43,97 +45,107 @@ const FileExplorerHeader = ({
       >
         {/* Breadcrumb */}
         <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />}>
-          {selectedMenu === 'shared' ? [
-            <Link
-              key="shared"
-              component="button"
-              variant="body1"
-              onClick={() => onBreadcrumbClick(-1)}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5,
-                color: 'text.primary',
-                textDecoration: 'none',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                '&:hover': {
-                  color: 'primary.main',
-                },
-              }}
-            >
-              <HomeIcon fontSize="small" />
-              Paylaşılanlarım
-            </Link>,
-            // Shared folder path için breadcrumb oluştur
-            ...(navigation.getCurrentNavState().folderPath.map((folder, index) => (
-              <Link
-                key={`shared-folder-${index}`}
-                component="button"
-                variant="body1"
-                onClick={() => onBreadcrumbClick(index)}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  color: index === navigation.getCurrentNavState().folderPath.length - 1 ? 'text.primary' : 'text.secondary',
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.95rem',
-                  '&:hover': {
-                    color: 'primary.main',
-                  },
-                }}
-              >
-                {folder.name}
-              </Link>
-            )))
-          ] : [
-            <Link
-              key="home"
-              component="button"
-              variant="body1"
-              onClick={() => onBreadcrumbClick(-1)}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5,
-                color: navigation.getCurrentNavState().currentFolder ? 'text.secondary' : 'text.primary',
-                textDecoration: 'none',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                '&:hover': {
-                  color: 'primary.main',
-                },
-              }}
-            >
-              <HomeIcon fontSize="small" />
-              My Drive
-            </Link>,
-            // Path'deki her klasör için breadcrumb oluştur
-            ...(navigation.getCurrentNavState().folderPath.map((folder, index) => (
-              <Link
-                key={`folder-${index}`}
-                component="button"
-                variant="body1"
-                onClick={() => onBreadcrumbClick(index)}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  color: index === navigation.getCurrentNavState().folderPath.length - 1 ? 'text.primary' : 'text.secondary',
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.95rem',
-                  '&:hover': {
-                    color: 'primary.main',
-                  },
-                }}
-              >
-                {folder.name}
-              </Link>
-            )))
-          ]}
+          {selectedMenu === 'shared'
+            ? [
+                <Link
+                  key="shared"
+                  component="button"
+                  variant="body1"
+                  onClick={() => onBreadcrumbClick(-1)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    color: 'text.primary',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.95rem',
+                    '&:hover': {
+                      color: 'primary.main',
+                    },
+                  }}
+                >
+                  <HomeIcon fontSize="small" />
+                  {t('header.shared')}
+                </Link>,
+                // Shared folder path için breadcrumb oluştur
+                ...navigation.getCurrentNavState().folderPath.map((folder, index) => (
+                  <Link
+                    key={`shared-folder-${index}`}
+                    component="button"
+                    variant="body1"
+                    onClick={() => onBreadcrumbClick(index)}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      color:
+                        index === navigation.getCurrentNavState().folderPath.length - 1
+                          ? 'text.primary'
+                          : 'text.secondary',
+                      textDecoration: 'none',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem',
+                      '&:hover': {
+                        color: 'primary.main',
+                      },
+                    }}
+                  >
+                    {folder.name}
+                  </Link>
+                )),
+              ]
+            : [
+                <Link
+                  key="home"
+                  component="button"
+                  variant="body1"
+                  onClick={() => onBreadcrumbClick(-1)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    color: navigation.getCurrentNavState().currentFolder
+                      ? 'text.secondary'
+                      : 'text.primary',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.95rem',
+                    '&:hover': {
+                      color: 'primary.main',
+                    },
+                  }}
+                >
+                  <HomeIcon fontSize="small" />
+                  My Drive
+                </Link>,
+                // Path'deki her klasör için breadcrumb oluştur
+                ...navigation.getCurrentNavState().folderPath.map((folder, index) => (
+                  <Link
+                    key={`folder-${index}`}
+                    component="button"
+                    variant="body1"
+                    onClick={() => onBreadcrumbClick(index)}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      color:
+                        index === navigation.getCurrentNavState().folderPath.length - 1
+                          ? 'text.primary'
+                          : 'text.secondary',
+                      textDecoration: 'none',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem',
+                      '&:hover': {
+                        color: 'primary.main',
+                      },
+                    }}
+                  >
+                    {folder.name}
+                  </Link>
+                )),
+              ]}
         </Breadcrumbs>
 
         {/* View Mode Toggle */}
@@ -156,9 +168,7 @@ const FileExplorerHeader = ({
           >
             <ViewModuleIcon />
           </IconButton>
-          <IconButton size="small">
-            {/* More options can be added here */}
-          </IconButton>
+          <IconButton size="small">{/* More options can be added here */}</IconButton>
         </Box>
       </Toolbar>
 

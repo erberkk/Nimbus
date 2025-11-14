@@ -12,7 +12,13 @@ import { useTranslation } from 'react-i18next';
 import PersonIcon from '@mui/icons-material/Person';
 import { userApi } from '../services/api';
 
-const UserSearch = ({ selectedUsers, onSelectUser, onRemoveUser, excludeUserId, excludeUserIds = [] }) => {
+const UserSearch = ({
+  selectedUsers,
+  onSelectUser,
+  onRemoveUser,
+  excludeUserId,
+  excludeUserIds = [],
+}) => {
   const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
   const [options, setOptions] = useState([]);
@@ -66,7 +72,7 @@ const UserSearch = ({ selectedUsers, onSelectUser, onRemoveUser, excludeUserId, 
         renderInput={params => (
           <TextField
             {...params}
-            placeholder="Email ile kullanıcı ara..."
+            placeholder={t('user_search.placeholder')}
             variant="outlined"
             InputProps={{
               ...params.InputProps,
@@ -82,7 +88,12 @@ const UserSearch = ({ selectedUsers, onSelectUser, onRemoveUser, excludeUserId, 
         renderOption={(props, option) => {
           const { key, ...otherProps } = props;
           return (
-            <Box component="li" key={key} {...otherProps} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box
+              component="li"
+              key={key}
+              {...otherProps}
+              sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}
+            >
               <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
                 <PersonIcon fontSize="small" />
               </Avatar>
@@ -110,13 +121,10 @@ const UserSearch = ({ selectedUsers, onSelectUser, onRemoveUser, excludeUserId, 
             />
           ))
         }
-        noOptionsText={
-          inputValue.length < 2 ? 'En az 2 karakter girin' : 'Kullanıcı bulunamadı'
-        }
+        noOptionsText={inputValue.length < 2 ? 'En az 2 karakter girin' : 'Kullanıcı bulunamadı'}
       />
     </Box>
   );
 };
 
 export default UserSearch;
-

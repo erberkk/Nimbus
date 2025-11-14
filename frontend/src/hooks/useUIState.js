@@ -12,7 +12,7 @@ export const useUIState = () => {
 
   // View mode functions
   const toggleViewMode = useCallback(() => {
-    setViewMode(prev => prev === 'grid' ? 'list' : 'grid');
+    setViewMode(prev => (prev === 'grid' ? 'list' : 'grid'));
   }, []);
 
   // Context menu functions
@@ -38,12 +38,12 @@ export const useUIState = () => {
     menuAnchor,
     selectedItem,
     refreshTrigger,
-    
+
     // UI control functions
     setViewMode,
     toggleViewMode,
     openContextMenu,
     closeContextMenu,
-    triggerRefresh
+    triggerRefresh,
   };
 };

@@ -1,6 +1,16 @@
-import { Card, CardContent, Typography, IconButton, Box, Menu, MenuItem, Chip } from '@mui/material';
+import {
+  Card,
+  CardContent,
+  Typography,
+  IconButton,
+  Box,
+  Menu,
+  MenuItem,
+  Chip,
+} from '@mui/material';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import FolderIcon from '@mui/icons-material/Folder';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -10,6 +20,7 @@ import ShareIcon from '@mui/icons-material/Share';
 const MotionCard = motion.create(Card);
 
 const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
+  const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState(null);
 
   const handleMenuOpen = event => {
@@ -91,7 +102,9 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            {folder.item_count || 0} öğe
+            {folder.item_count
+              ? t('folder.items', { count: folder.item_count })
+              : t('folder.items_zero')}
           </Typography>
           {folder.isShared && (
             <>
@@ -99,7 +112,7 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
                 •
               </Typography>
               <Chip
-                label={folder.access_type === 'read' ? 'Görüntüleme' : 'Düzenleme'}
+                label={folder.access_type === 'read' ? t('access.read') : t('access.write')}
                 size="small"
                 color={folder.access_type === 'read' ? 'info' : 'warning'}
                 sx={{ fontSize: '0.7rem' }}
@@ -127,15 +140,15 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
       >
         <MenuItem onClick={handleEdit}>
           <EditIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          Yeniden Adlandır
+          {t('folder.rename')}
         </MenuItem>
         <MenuItem onClick={handleShare}>
           <ShareIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          Paylaş
+          {t('share')}
         </MenuItem>
         <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
           <DeleteIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          Sil
+          {t('delete')}
         </MenuItem>
       </Menu>
     </MotionCard>

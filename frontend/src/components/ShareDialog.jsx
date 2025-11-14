@@ -73,7 +73,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
       }
     } catch (error) {
       console.error('Failed to load shares:', error);
-      window.toast?.error('Paylaşımlar yüklenemedi');
+      window.toast?.error(t('share.load_error'));
       setShares({});
       setResourcePublicLink(null);
       setUserAccessLevel('owner'); // Default fallback
@@ -88,29 +88,28 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
     try {
       await navigator.clipboard.writeText(`${window.location.origin}/share/${resourcePublicLink}`);
       setCopied(true);
-      window.toast?.success('Bağlantı kopyalandı');
+      window.toast?.success(t('share.link_copied'));
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error('Failed to copy link:', error);
-      window.toast?.error('Bağlantı kopyalanamadı');
+      window.toast?.error(t('share.link_copy_failed'));
     }
   };
 
-
-  const handleAddUser = async (selectedUser) => {
+  const handleAddUser = async selectedUser => {
     try {
       // Add user to access list (this will update the file/folder's access_list)
       await shareApi.updateAccessPermission(resource.id, {
         user_id: selectedUser.id,
-        permission: 'read'
+        permission: 'read',
       });
 
       // Refresh the shares data to get updated access list
       await loadShares();
-      window.toast?.success(`${selectedUser.email} ile paylaşıldı`);
+      window.toast?.success(t('share.success', { email: selectedUser.email }));
     } catch (error) {
       console.error('Failed to share:', error);
-      window.toast?.error('Paylaşım başarısız');
+      window.toast?.error(t('share.failed'));
     }
   };
 
@@ -118,7 +117,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
     try {
       await shareApi.updateAccessPermission(resource.id, {
         user_id: userId,
-        permission: newPermission
+        permission: newPermission,
       });
 
       // Refresh the shares data to get updated access list
@@ -130,19 +129,18 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
     }
   };
 
-  const handleRemoveUser = async (userId) => {
+  const handleRemoveUser = async userId => {
     try {
       await shareApi.removeUserAccess(resource.id, userId);
 
       // Refresh the shares data to get updated access list
       await loadShares();
-      window.toast?.success('Paylaşım kaldırıldı');
+      window.toast?.success(t('share.remove_success'));
     } catch (error) {
       console.error('Failed to remove share:', error);
-      window.toast?.error('Paylaşım kaldırılamadı');
+      window.toast?.error(t('share.remove_failed'));
     }
   };
-
 
   const handleClose = () => {
     onClose();
@@ -169,7 +167,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        access_type: getAccessTypeForUser(user.id)
+        access_type: getAccessTypeForUser(user.id),
       }));
     }
 
@@ -179,7 +177,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
         id: access.user_id,
         email: '', // We don't have email here
         name: access.user_id, // Fallback to ID
-        access_type: access.access_type
+        access_type: access.access_type,
       }));
     }
 
@@ -187,7 +185,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
   };
 
   // Get access type for a specific user
-  const getAccessTypeForUser = (userId) => {
+  const getAccessTypeForUser = userId => {
     if (!shares || !shares.access_list) return 'read';
 
     const accessEntry = shares.access_list.find(access => access.user_id === userId);
@@ -201,7 +199,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="h6" component="span">
-            Paylaş
+            {t('share.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {resource?.filename || resource?.name}
@@ -233,7 +231,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
             ) : (
               <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Sadece görüntüleme yetkiniz var. Bu kaynağı paylaşamaz veya erişimleri düzenleyemezsiniz.
+                  {t('share.no_permission')}
                 </Typography>
               </Box>
             )}
@@ -260,11 +258,11 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
                     </Avatar>
                   </ListItemAvatar>
                   <ListItemText
-                     primary={
-                       <Typography variant="body2" fontWeight={600}>
-                         {user?.name || user?.email}
-                       </Typography>
-                     }
+                    primary={
+                      <Typography variant="body2" fontWeight={600}>
+                        {user?.name || user?.email}
+                      </Typography>
+                    }
                     secondary={
                       <Typography variant="caption" color="text.secondary">
                         Sahip
@@ -274,7 +272,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
                 </ListItem>
 
                 {/* Shared Users */}
-                {sharedUsers.map((userInfo) => (
+                {sharedUsers.map(userInfo => (
                   <ListItem
                     key={userInfo.id}
                     sx={{
@@ -285,7 +283,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
                       },
                     }}
                     secondaryAction={
-                      (userAccessLevel === 'owner' || userAccessLevel === 'write') ? (
+                      userAccessLevel === 'owner' || userAccessLevel === 'write' ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Select
                             value={userInfo.access_type}
@@ -293,8 +291,8 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
                             size="small"
                             sx={{ minWidth: 130 }}
                           >
-                            <MenuItem value="read">Görüntüleyen</MenuItem>
-                            <MenuItem value="write">Düzenleyen</MenuItem>
+                            <MenuItem value="read">{t('share.viewer')}</MenuItem>
+                            <MenuItem value="write">{t('share.editor')}</MenuItem>
                           </Select>
                           <IconButton
                             edge="end"
@@ -306,7 +304,7 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
                         </Box>
                       ) : (
                         <Typography variant="body2" color="text.secondary">
-                          {userInfo.access_type === 'write' ? 'Düzenleyen' : 'Görüntüleyen'}
+                          {userInfo.access_type === 'write' ? t('share.editor') : t('share.viewer')}
                         </Typography>
                       )
                     }
@@ -317,11 +315,11 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
                       </Avatar>
                     </ListItemAvatar>
                     <ListItemText
-                        primary={
-                          <Typography variant="body2" fontWeight={500}>
-                            {userInfo.name || userInfo.email} {userInfo.id === user?.id && '(Siz)'}
-                          </Typography>
-                        }
+                      primary={
+                        <Typography variant="body2" fontWeight={500}>
+                          {userInfo.name || userInfo.email} {userInfo.id === user?.id && '(Siz)'}
+                        </Typography>
+                      }
                       secondary={
                         <Typography variant="caption" color="text.secondary">
                           {userInfo.email}
@@ -335,25 +333,31 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
 
             {/* Public Link Section */}
             <Box sx={{ mb: 2 }}>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+              >
                 <LinkIcon fontSize="small" />
-                Public Bağlantı
+                {t('share.public_link')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Bu bağlantıyı herkesle paylaşabilirsiniz. Bağlantıya tıklayan giriş yapmış kullanıcılar dosyayı görüntüleyebilir.
+                {t('share.public_hint')}
               </Typography>
 
               {resourcePublicLink ? (
-                <Box sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  p: 1.5,
-                  bgcolor: 'grey.50',
-                  borderRadius: 1,
-                  border: '1px solid',
-                  borderColor: 'grey.200'
-                }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    p: 1.5,
+                    bgcolor: 'grey.50',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: 'grey.200',
+                  }}
+                >
                   <Typography variant="body2" sx={{ flex: 1, fontFamily: 'monospace' }}>
                     {`${window.location.origin}/share/${resourcePublicLink}`}
                   </Typography>
@@ -375,7 +379,6 @@ const ShareDialog = ({ open, onClose, resource, resourceType }) => {
             </Box>
 
             <Divider sx={{ my: 2 }} />
-
           </>
         )}
       </DialogContent>

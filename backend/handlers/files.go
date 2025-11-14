@@ -100,18 +100,113 @@ func CreateFile(cfg *config.Config) fiber.Handler {
 			})
 		}
 
+		// Auto-trigger processing for PDF/DOCX files
+		contentTypeLower := strings.ToLower(file.ContentType)
+		isAskable := strings.Contains(contentTypeLower, "pdf") ||
+			strings.Contains(contentTypeLower, "wordprocessingml") ||
+			strings.Contains(contentTypeLower, "msword")
+
+		if isAskable && services.DocumentProcessorInstance != nil {
+			log.Printf("Auto-triggering document processing for file %s (%s)", file.ID.Hex(), file.Filename)
+			services.DocumentProcessorInstance.ProcessDocumentAsync(file.ID.Hex(), file.MinioPath, file.ContentType)
+		}
+
 		return c.Status(201).JSON(fiber.Map{
 			"message": "Dosya başarıyla kaydedildi",
 			"file": models.FileResponse{
-				ID:          file.ID.Hex(),
-				Filename:    file.Filename,
-				Size:        file.Size,
-				ContentType: file.ContentType,
-				PublicLink:  file.PublicLink,
-				AccessList:  file.AccessList,
-				CreatedAt:   file.CreatedAt,
-				UpdatedAt:   file.UpdatedAt,
+				ID:               file.ID.Hex(),
+				Filename:         file.Filename,
+				Size:             file.Size,
+				ContentType:      file.ContentType,
+				PublicLink:       file.PublicLink,
+				AccessList:       file.AccessList,
+				ProcessingStatus: file.ProcessingStatus,
+				ProcessingError:  file.ProcessingError,
+				ProcessedAt:      file.ProcessedAt,
+				ChunkCount:       file.ChunkCount,
+				CreatedAt:        file.CreatedAt,
+				UpdatedAt:        file.UpdatedAt,
 			},
+		})
+	}
+}
+
+// ProcessDocument - Trigger document processing for PDF/DOCX files
+func ProcessDocument(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		fileID := c.Params("id")
+		if fileID == "" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "file ID parametresi gerekli",
+			})
+		}
+
+		// Get file record
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Dosya bulunamadı",
+			})
+		}
+
+		// Check if user has access to the file
+		if file.UserID != userID {
+			// Check if file is shared with read or write access
+			hasAccess := false
+			for _, access := range file.AccessList {
+				if access.UserID == userID {
+					hasAccess = true
+					break
+				}
+			}
+			if !hasAccess {
+				return c.Status(403).JSON(fiber.Map{
+					"error": "Bu dosyaya erişim yetkiniz yok",
+				})
+			}
+		}
+
+		// Check if file is PDF or DOCX
+		contentTypeLower := strings.ToLower(file.ContentType)
+		isAskable := strings.Contains(contentTypeLower, "pdf") ||
+			strings.Contains(contentTypeLower, "wordprocessingml") ||
+			strings.Contains(contentTypeLower, "msword")
+
+		if !isAskable {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Bu dosya türü işlenemiyor. Sadece PDF ve DOCX dosyaları desteklenmektedir.",
+			})
+		}
+
+		// Check if already processing or completed
+		if file.ProcessingStatus == "processing" {
+			return c.Status(409).JSON(fiber.Map{
+				"error":  "Dosya zaten işleniyor",
+				"status": file.ProcessingStatus,
+			})
+		}
+
+		if file.ProcessingStatus == "completed" {
+			return c.JSON(fiber.Map{
+				"message":     "Dosya zaten işlenmiş",
+				"status":      file.ProcessingStatus,
+				"chunk_count": file.ChunkCount,
+			})
+		}
+
+		// Start async processing
+		services.DocumentProcessorInstance.ProcessDocumentAsync(fileID, file.MinioPath, file.ContentType)
+
+		return c.Status(202).JSON(fiber.Map{
+			"message": "Dosya işleme başlatıldı",
+			"status":  "pending",
 		})
 	}
 }
@@ -239,12 +334,20 @@ func ListUserFiles(cfg *config.Config) fiber.Handler {
 		fileList := make([]models.FileResponse, 0, len(files))
 		for _, file := range files {
 			fileList = append(fileList, models.FileResponse{
-				ID:          file.ID.Hex(),
-				Filename:    file.Filename,
-				Size:        file.Size,
-				ContentType: file.ContentType,
-				CreatedAt:   file.CreatedAt,
-				UpdatedAt:   file.UpdatedAt,
+				ID:               file.ID.Hex(),
+				Filename:         file.Filename,
+				Size:             file.Size,
+				ContentType:      file.ContentType,
+				PublicLink:       file.PublicLink,
+				AccessList:       file.AccessList,
+				ParentID:         file.ParentID,
+				Ancestors:        file.Ancestors,
+				ProcessingStatus: file.ProcessingStatus,
+				ProcessingError:  file.ProcessingError,
+				ProcessedAt:      file.ProcessedAt,
+				ChunkCount:       file.ChunkCount,
+				CreatedAt:        file.CreatedAt,
+				UpdatedAt:        file.UpdatedAt,
 			})
 		}
 
@@ -298,6 +401,23 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 		// MinIO'dan sil (opsiyonel - hata olsa bile kayıt silindi)
 		if err := services.MinioService.DeleteFile(file.MinioPath); err != nil {
 			log.Printf("MinIO'dan dosya silme hatası: %v (kayıt silindi)", err)
+		}
+
+		// Chroma'dan sil (if document was processed)
+		if file.ProcessingStatus == "completed" && services.DocumentProcessorInstance != nil {
+			chromaService := services.NewChromaService(cfg)
+			if err := chromaService.DeleteDocumentChunks(fileID); err != nil {
+				log.Printf("Chroma'dan chunks silme hatası: %v (kayıt silindi)", err)
+			} else {
+				log.Printf("Chroma'dan %s dosyası için chunks silindi", fileID)
+			}
+		}
+
+		// Delete conversation history
+		if err := services.ConversationServiceInstance.DeleteConversationsByFileID(fileID); err != nil {
+			log.Printf("Sohbet geçmişi silme hatası: %v (kayıt silindi)", err)
+		} else {
+			log.Printf("%s dosyası için sohbet geçmişi silindi", fileID)
 		}
 
 		return c.JSON(fiber.Map{

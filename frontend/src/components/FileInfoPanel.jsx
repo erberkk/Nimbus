@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  IconButton,
-  Paper,
-  Divider,
-  Chip,
-  Avatar,
-  Button,
-} from '@mui/material';
+import { useTranslation } from 'react-i18next';
+import { Box, Typography, IconButton, Paper, Divider, Chip, Avatar, Button } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import CloseIcon from '@mui/icons-material/Close';
 import InfoIcon from '@mui/icons-material/Info';
@@ -25,6 +17,7 @@ import { formatFileSize, formatDate, formatContentType } from '../utils/fileUtil
 import { shareApi } from '../services/api';
 
 const FileInfoPanel = ({ isOpen, onClose, file }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [publicLink, setPublicLink] = useState(null);
   const [loadingLink, setLoadingLink] = useState(false);
@@ -122,7 +115,10 @@ const FileInfoPanel = ({ isOpen, onClose, file }) => {
         {icon}
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'block', mb: 0.5 }}>
+        <Typography
+          variant="caption"
+          sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'block', mb: 0.5 }}
+        >
           {label}
         </Typography>
         {chip ? (
@@ -139,10 +135,10 @@ const FileInfoPanel = ({ isOpen, onClose, file }) => {
             }}
           />
         ) : (
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              color: 'white', 
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'white',
               fontWeight: 500,
               wordBreak: 'break-word',
             }}
@@ -209,7 +205,14 @@ const FileInfoPanel = ({ isOpen, onClose, file }) => {
                     borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
                   }}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      mb: 2,
+                    }}
+                  >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                       <Box
                         sx={{
@@ -225,7 +228,7 @@ const FileInfoPanel = ({ isOpen, onClose, file }) => {
                         <InfoIcon sx={{ color: 'white', fontSize: 28 }} />
                       </Box>
                       <Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
-                        Dosya Bilgileri
+                        {t('file_info.title')}
                       </Typography>
                     </Box>
                     <IconButton
@@ -330,7 +333,7 @@ const FileInfoPanel = ({ isOpen, onClose, file }) => {
 
                   <InfoRow
                     icon={<StorageIcon sx={{ color: 'white', fontSize: 20 }} />}
-                    label="Dosya Boyutu"
+                    label={t('file_info.size')}
                     value={formatFileSize(file.size)}
                   />
 
@@ -349,7 +352,7 @@ const FileInfoPanel = ({ isOpen, onClose, file }) => {
                   {file.content_type && (
                     <InfoRow
                       icon={<InsertDriveFileIcon sx={{ color: 'white', fontSize: 20 }} />}
-                      label="Dosya Türü"
+                      label={t('file_info.type')}
                       value={formatContentType(file.content_type, file.filename)}
                       chip
                     />
@@ -375,10 +378,7 @@ const FileInfoPanel = ({ isOpen, onClose, file }) => {
                       <InfoRow
                         icon={
                           file.owner.avatar ? (
-                            <Avatar
-                              src={file.owner.avatar}
-                              sx={{ width: 24, height: 24 }}
-                            />
+                            <Avatar src={file.owner.avatar} sx={{ width: 24, height: 24 }} />
                           ) : (
                             <PersonIcon sx={{ color: 'white', fontSize: 20 }} />
                           )
@@ -422,7 +422,7 @@ const FileInfoPanel = ({ isOpen, onClose, file }) => {
                           mb: 2,
                         }}
                       >
-                        PAYLAŞIM LİNKİ
+                        {t('file_info.share_link')}
                       </Typography>
 
                       <Box
@@ -493,4 +493,3 @@ const FileInfoPanel = ({ isOpen, onClose, file }) => {
 };
 
 export default FileInfoPanel;
-

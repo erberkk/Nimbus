@@ -16,32 +16,40 @@ type AccessEntry struct {
 }
 
 type File struct {
-	ID          primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
-	UserID      string               `json:"user_id" bson:"user_id"`
-	FolderID    *string              `json:"folder_id" bson:"folder_id,omitempty"`
-	ParentID    *primitive.ObjectID  `json:"parent_id" bson:"parent_id,omitempty"`
-	Ancestors   []primitive.ObjectID `json:"ancestors" bson:"ancestors"`
-	Filename    string               `json:"filename" bson:"filename"`
-	Size        int64                `json:"size" bson:"size"`
-	ContentType string               `json:"content_type" bson:"content_type"`
-	MinioPath   string               `json:"minio_path" bson:"minio_path"`
-	PublicLink  string               `json:"public_link" bson:"public_link"`
-	AccessList  []AccessEntry        `json:"access_list" bson:"access_list"`
-	CreatedAt   time.Time            `json:"created_at" bson:"created_at"`
-	UpdatedAt   time.Time            `json:"updated_at" bson:"updated_at"`
+	ID               primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
+	UserID           string               `json:"user_id" bson:"user_id"`
+	FolderID         *string              `json:"folder_id" bson:"folder_id,omitempty"`
+	ParentID         *primitive.ObjectID  `json:"parent_id" bson:"parent_id,omitempty"`
+	Ancestors        []primitive.ObjectID `json:"ancestors" bson:"ancestors"`
+	Filename         string               `json:"filename" bson:"filename"`
+	Size             int64                `json:"size" bson:"size"`
+	ContentType      string               `json:"content_type" bson:"content_type"`
+	MinioPath        string               `json:"minio_path" bson:"minio_path"`
+	PublicLink       string               `json:"public_link" bson:"public_link"`
+	AccessList       []AccessEntry        `json:"access_list" bson:"access_list"`
+	ProcessingStatus string               `json:"processing_status" bson:"processing_status"` // none, pending, processing, completed, failed
+	ProcessingError  string               `json:"processing_error,omitempty" bson:"processing_error,omitempty"`
+	ProcessedAt      *time.Time           `json:"processed_at,omitempty" bson:"processed_at,omitempty"`
+	ChunkCount       int                  `json:"chunk_count" bson:"chunk_count"`
+	CreatedAt        time.Time            `json:"created_at" bson:"created_at"`
+	UpdatedAt        time.Time            `json:"updated_at" bson:"updated_at"`
 }
 
 type FileResponse struct {
-	ID          string               `json:"id"`
-	Filename    string               `json:"filename"`
-	Size        int64                `json:"size"`
-	ContentType string               `json:"content_type"`
-	PublicLink  string               `json:"public_link"`
-	AccessList  []AccessEntry        `json:"access_list"`
-	ParentID    *primitive.ObjectID  `json:"parent_id,omitempty"`
-	Ancestors   []primitive.ObjectID `json:"ancestors"`
-	CreatedAt   time.Time            `json:"created_at"`
-	UpdatedAt   time.Time            `json:"updated_at"`
+	ID               string               `json:"id"`
+	Filename         string               `json:"filename"`
+	Size             int64                `json:"size"`
+	ContentType      string               `json:"content_type"`
+	PublicLink       string               `json:"public_link"`
+	AccessList       []AccessEntry        `json:"access_list"`
+	ParentID         *primitive.ObjectID  `json:"parent_id,omitempty"`
+	Ancestors        []primitive.ObjectID `json:"ancestors"`
+	ProcessingStatus string               `json:"processing_status"`
+	ProcessingError  string               `json:"processing_error,omitempty"`
+	ProcessedAt      *time.Time           `json:"processed_at,omitempty"`
+	ChunkCount       int                  `json:"chunk_count"`
+	CreatedAt        time.Time            `json:"created_at"`
+	UpdatedAt        time.Time            `json:"updated_at"`
 }
 
 type CreateFileRequest struct {
