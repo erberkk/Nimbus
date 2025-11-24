@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
+	"nimbus-backend/cache"
 	"nimbus-backend/config"
 )
 
@@ -16,6 +19,8 @@ type OllamaService struct {
 	embedModel string
 	llmModel   string
 	httpClient *http.Client
+	queryCache cache.QueryCache
+	config     *config.Config
 }
 
 type EmbeddingRequest struct {
@@ -39,6 +44,15 @@ type GenerateResponse struct {
 }
 
 func NewOllamaService(cfg *config.Config) *OllamaService {
+	var queryCache cache.QueryCache
+
+	// Initialize query cache if enabled
+	if cfg.EnableQueryCache {
+		ttl := time.Duration(cfg.QueryCacheTTL) * time.Minute
+		queryCache = cache.NewInMemoryQueryCache(ttl)
+		log.Printf("Query cache enabled with TTL: %v", ttl)
+	}
+
 	return &OllamaService{
 		baseURL:    cfg.OllamaBaseURL,
 		embedModel: cfg.OllamaEmbedModel,
@@ -46,11 +60,50 @@ func NewOllamaService(cfg *config.Config) *OllamaService {
 		httpClient: &http.Client{
 			Timeout: 180 * time.Second, // 3 minutes for long-running operations
 		},
+		queryCache: queryCache,
+		config:     cfg,
 	}
 }
 
 // GenerateEmbedding generates an embedding vector for the given text using Ollama
+// Includes caching support if query cache is enabled
 func (s *OllamaService) GenerateEmbedding(text string) ([]float64, error) {
+	// Check cache if enabled
+	if s.queryCache != nil && s.config.EnableQueryCache {
+		queryKey := cache.GenerateQueryKey(text)
+
+		// Try exact cache hit
+		if cachedQuery, found := s.queryCache.Get(queryKey); found {
+			log.Printf("Cache hit for embedding (exact match)")
+			return cachedQuery.Embedding, nil
+		}
+	}
+
+	// Generate embedding from Ollama
+	embedding, err := s.generateEmbeddingFromAPI(text)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the result if caching is enabled
+	if s.queryCache != nil && s.config.EnableQueryCache {
+		queryKey := cache.GenerateQueryKey(text)
+		cachedQuery := &cache.CachedQuery{
+			Embedding: embedding,
+			Timestamp: time.Now(),
+		}
+
+		ttl := time.Duration(s.config.QueryCacheTTL) * time.Minute
+		if err := s.queryCache.Set(queryKey, cachedQuery, ttl); err != nil {
+			log.Printf("Warning: failed to cache embedding: %v", err)
+		}
+	}
+
+	return embedding, nil
+}
+
+// generateEmbeddingFromAPI calls the Ollama API to generate an embedding
+func (s *OllamaService) generateEmbeddingFromAPI(text string) ([]float64, error) {
 	reqBody := EmbeddingRequest{
 		Model:  s.embedModel,
 		Prompt: text,
@@ -90,6 +143,15 @@ func (s *OllamaService) GenerateEmbedding(text string) ([]float64, error) {
 	}
 
 	return embResp.Embedding, nil
+}
+
+// GetCacheStats returns query cache statistics if cache is enabled
+func (s *OllamaService) GetCacheStats() *cache.CacheStats {
+	if s.queryCache != nil {
+		stats := s.queryCache.Stats()
+		return &stats
+	}
+	return nil
 }
 
 // GenerateResponse generates a text response using the LLM model
@@ -134,39 +196,143 @@ func (s *OllamaService) GenerateResponse(prompt string) (string, error) {
 
 // GenerateRAGResponse generates a response with context chunks (for RAG)
 func (s *OllamaService) GenerateRAGResponse(question string, contextChunks []string) (string, error) {
-	// Build secure, context-bound prompt with markdown formatting
-	prompt := "You are a document analysis assistant. Your ONLY job is to answer questions based strictly on the provided document context below.\n\n"
+	var sb strings.Builder
+	qLower := strings.ToLower(question)
 
-	prompt += "CRITICAL RULES:\n"
-	prompt += "1. ONLY answer questions that can be answered from the given context\n"
-	prompt += "2. If the question is unrelated or cannot be answered from the context, respond EXACTLY:\n"
-	prompt += "   \"Üzgünüm, bu soru dosya içeriğiyle ilgili değil. Lütfen belgede yer alan bilgilerle alakalı bir soru sorun.\"\n"
-	prompt += "3. NEVER generate, suggest, execute, or help with:\n"
-	prompt += "   - Database commands (SQL: DROP, DELETE, INSERT, UPDATE, etc.)\n"
-	prompt += "   - System/shell commands (rm, del, format, shutdown, etc.)\n"
-	prompt += "   - Code execution or malicious scripts\n"
-	prompt += "   - Accessing credentials, passwords, or sensitive system data\n"
-	prompt += "   - Any harmful, dangerous, or unethical content\n"
-	prompt += "4. Your purpose is ONLY to: explain, summarize, analyze, and answer questions about the document content\n\n"
+	// Detect intent categories
+	isComparison := strings.Contains(qLower, "compare") ||
+		strings.Contains(qLower, "comparison") ||
+		strings.Contains(qLower, "vs") ||
+		strings.Contains(qLower, "versus")
 
-	prompt += "FORMATTING RULES (for valid answers only):\n"
-	prompt += "- Use Markdown format\n"
-	prompt += "- Use ## or ### for headers\n"
-	prompt += "- Use - or numbers for lists\n"
-	prompt += "- Use **bold** for emphasis\n"
-	prompt += "- Use `backticks` for code or technical terms\n"
-	prompt += "- Use blank lines between paragraphs\n"
-	prompt += "- Present information in a clear, organized, and professional manner\n\n"
+	isDefinition := strings.HasPrefix(qLower, "what is ") ||
+		strings.HasPrefix(qLower, "what's ") ||
+		strings.HasPrefix(qLower, "whats ") ||
+		strings.HasPrefix(qLower, "define ") ||
+		strings.Contains(qLower, "definition of") ||
+		strings.Contains(qLower, "meaning of")
 
-	prompt += "DOCUMENT CONTEXT:\n"
-	prompt += "=================\n"
-	for i, chunk := range contextChunks {
-		prompt += fmt.Sprintf("--- Context Chunk %d ---\n%s\n\n", i+1, chunk)
+	isSummary := strings.Contains(qLower, "summarize") ||
+		strings.Contains(qLower, "summary") ||
+		strings.Contains(qLower, "overview") ||
+		strings.Contains(qLower, "brief") ||
+		strings.Contains(qLower, "outline")
+
+	// Extract definition term once (optimized)
+	defTerm := ""
+	if isDefinition {
+		defTerm = strings.TrimPrefix(qLower, "what is ")
+		defTerm = strings.TrimPrefix(defTerm, "what's ")
+		defTerm = strings.TrimPrefix(defTerm, "whats ")
+		defTerm = strings.TrimPrefix(defTerm, "define ")
+		defTerm = strings.TrimPrefix(defTerm, "the ")
+		defTerm = strings.TrimSpace(defTerm)
 	}
 
-	prompt += "=================\n\n"
-	prompt += fmt.Sprintf("USER QUESTION: %s\n\n", question)
-	prompt += "YOUR ANSWER (in Markdown format, based ONLY on the context above):\n"
+	// === CORE SYSTEM RULES ===
+	sb.WriteString("You are a document analysis assistant. You ONLY answer questions using the document context below.\n\n")
 
-	return s.GenerateResponse(prompt)
+	sb.WriteString("CRITICAL RULES:\n")
+	sb.WriteString("1. Only answer using the provided context.\n")
+	sb.WriteString("2. If the answer is NOT in the context, reply EXACTLY:\n")
+	sb.WriteString("   \"Sorry, this question is not related to the document content. Please ask a question that is related to the document.\"\n")
+	sb.WriteString("3. NEVER generate or assist with:\n")
+	sb.WriteString("   - database/system/shell commands\n")
+	sb.WriteString("   - harmful or unethical actions\n")
+	sb.WriteString("   - code execution or scripts\n")
+	sb.WriteString("4. Your ONLY job: summarize, analyze, explain, compare **based on the context**.\n\n")
+
+	// ==== INTENT-SPECIFIC RULES ====
+	if isComparison {
+		sb.WriteString("SPECIAL MODE: COMPARISON QUERY\n")
+		sb.WriteString("- Extract ALL features and ALL item values from any comparison-like text.\n")
+		sb.WriteString("- Comparison tables may appear as bullet lists or inline patterns.\n")
+		sb.WriteString("- Do NOT omit any features.\n")
+		sb.WriteString("- Present the final result in a clean Markdown table.\n\n")
+	}
+
+	if isDefinition {
+		sb.WriteString("SPECIAL MODE: DEFINITION QUERY\n")
+		sb.WriteString(fmt.Sprintf("- The term you must define is: **%s**\n", defTerm))
+		sb.WriteString("- Look for chunks where this term appears prominently.\n")
+		sb.WriteString("- Extract the complete meaning, purpose, components, and key characteristics.\n\n")
+	}
+
+	if isSummary {
+		sb.WriteString("SPECIAL MODE: SUMMARY QUERY\n")
+		sb.WriteString("- Produce a structured, topic-based summary.\n")
+		sb.WriteString("- Cover all major themes, lists, and important details.\n")
+		sb.WriteString("- Use headers and bullet points.\n\n")
+	}
+
+	// Formatting rules
+	sb.WriteString("FORMATTING RULES:\n")
+	sb.WriteString("- Use Markdown.\n")
+	sb.WriteString("- Use headings, lists, bold text.\n")
+	sb.WriteString("- Keep paragraphs clean and well-structured.\n")
+	sb.WriteString("- Final answer MUST be clean and professional.\n\n")
+
+	// ==== DOCUMENT CONTEXT ====
+	sb.WriteString("DOCUMENT CONTEXT:\n")
+	sb.WriteString("====================================================\n\n")
+
+	// Calculate available tokens for context
+	// Reserve 1000 tokens for system prompt and answer
+	maxContextTokens := s.config.ContextWindowSize - 1000
+	currentTokens := 0
+
+	for i, chunk := range contextChunks {
+		chunkTokens := s.CountTokens(chunk)
+		
+		// Check if adding this chunk exceeds the limit
+		if currentTokens + chunkTokens > maxContextTokens {
+			log.Printf("Context limit reached (%d/%d tokens). Truncating remaining %d chunks.", 
+				currentTokens, maxContextTokens, len(contextChunks)-i)
+			break
+		}
+
+		chLower := strings.ToLower(chunk)
+		header := fmt.Sprintf("--- Context Chunk %d ---", i+1)
+
+		// Highlight comparison chunks
+		if isComparison && (strings.Contains(chLower, "vs") ||
+			strings.Contains(chLower, "versus") ||
+			strings.Contains(chLower, "comparison")) {
+			header = fmt.Sprintf("--- Context Chunk %d (comparison data) ---", i+1)
+		}
+
+		// Highlight definition chunks
+		if isDefinition && defTerm != "" {
+			if strings.HasPrefix(chLower, defTerm) ||
+				strings.Contains(chLower, defTerm+" ") ||
+				strings.Contains(chLower, defTerm+"\n") {
+				header = fmt.Sprintf("--- Context Chunk %d (definition of %s) ---", i+1, defTerm)
+			}
+		}
+
+		sb.WriteString(fmt.Sprintf("%s\n%s\n\n", header, chunk))
+		currentTokens += chunkTokens
+	}
+
+	sb.WriteString("====================================================\n\n")
+	sb.WriteString(fmt.Sprintf("USER QUESTION: %s\n\n", question))
+	
+	// Chain of Thought Prompting (Internal only - do not output reasoning)
+	sb.WriteString("INSTRUCTIONS:\n")
+	sb.WriteString("1. Analyze the user's question and the provided context.\n")
+	sb.WriteString("2. Synthesize the information into a cohesive, natural answer.\n")
+	sb.WriteString("3. Do NOT mention 'Chunk 1', 'Chunk 2', etc. in your final answer.\n")
+	sb.WriteString("4. Do NOT output your internal reasoning or analysis steps.\n")
+	sb.WriteString("5. If the context has conflicting info, mention the conflict naturally.\n")
+	sb.WriteString("6. Provide a direct, professional response in Markdown.\n\n")
+	
+	sb.WriteString("YOUR ANSWER (Markdown only):\n")
+
+	return s.GenerateResponse(sb.String())
+}
+
+// CountTokens estimates the number of tokens in a string
+// Uses a simple heuristic (1 token ~= 4 chars) as we don't have a tokenizer
+func (s *OllamaService) CountTokens(text string) int {
+	return len(text) / 4
 }

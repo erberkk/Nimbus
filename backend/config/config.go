@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -32,6 +33,24 @@ type Config struct {
 	ChromaTenant          string // Chroma tenant name
 	ChromaDatabase        string // Chroma database name
 	ChromaCollection      string // Chroma collection name
+
+	// RAG Optimization Flags
+	EnableQueryCache    bool // Enable semantic query caching
+	EnableChunkCache    bool // Enable chunk popularity caching
+	EnableAdaptive      bool // Enable adaptive top-k retrieval
+	EnableFileRouting   bool // Enable file-level routing with in-memory index
+	EnableDeduplication bool // Enable file hash deduplication
+
+	// Cache Settings
+	QueryCacheTTL  int // Query cache TTL in minutes
+	ChunkCacheSize int // Maximum number of chunks in cache
+
+	// RAG Thresholds
+	HighSimilThreshold float64 // Threshold for high similarity
+	MedSimilThreshold  float64 // Threshold for medium similarity
+	MinSimilThreshold  float64 // Minimum similarity to include
+	ContextWindowSize  int     // Max tokens for LLM context
+	MaxRAGChunks       int     // Max chunks to retrieve for RAG
 }
 
 func Load() *Config {
@@ -64,6 +83,18 @@ func Load() *Config {
 		ChromaTenant:          getEnv("CHROMA_TENANT", "default_tenant"),
 		ChromaDatabase:        getEnv("CHROMA_DATABASE", "default_database"),
 		ChromaCollection:      getEnv("CHROMA_COLLECTION", "nimbus_documents"),
+		EnableQueryCache:      getEnvAsBool("ENABLE_QUERY_CACHE", true),
+		EnableChunkCache:      getEnvAsBool("ENABLE_CHUNK_CACHE", true),
+		EnableAdaptive:        getEnvAsBool("ENABLE_ADAPTIVE_RETRIEVAL", true),
+		EnableFileRouting:     getEnvAsBool("ENABLE_FILE_ROUTING", true),
+		EnableDeduplication:   getEnvAsBool("ENABLE_DEDUPLICATION", true),
+		QueryCacheTTL:         getEnvAsInt("QUERY_CACHE_TTL_MINUTES", 60),
+		ChunkCacheSize:        getEnvAsInt("CHUNK_CACHE_SIZE", 1000),
+		HighSimilThreshold:    getEnvAsFloat("RAG_HIGH_THRESHOLD", 0.8),
+		MedSimilThreshold:     getEnvAsFloat("RAG_MED_THRESHOLD", 0.5),
+		MinSimilThreshold:     getEnvAsFloat("RAG_MIN_THRESHOLD", 0.3),
+		ContextWindowSize:     getEnvAsInt("RAG_CONTEXT_WINDOW", 4000),
+		MaxRAGChunks:          getEnvAsInt("RAG_MAX_CHUNKS", 10),
 	}
 
 	if cfg.GoogleClientID == "" || cfg.GoogleSecret == "" {
@@ -86,4 +117,32 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 		return defaultValue
 	}
 	return valueStr == "true" || valueStr == "1" || valueStr == "yes"
+}
+
+func getEnvAsInt(key string, defaultValue int) int {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	var value int
+	_, err := fmt.Sscanf(valueStr, "%d", &value)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+func getEnvAsFloat(key string, defaultValue float64) float64 {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	var value float64
+	_, err := fmt.Sscanf(valueStr, "%f", &value)
+	if err != nil {
+		return defaultValue
+	}
+	return value
 }

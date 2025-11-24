@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { folderApi, fileApi, shareApi } from '../services/api';
+import { folderApi, fileApi, shareApi, api } from '../services/api';
 
 /**
  * File explorer data management hook
@@ -165,8 +165,27 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
 
   const downloadFile = useCallback(async file => {
     try {
-      const response = await fileApi.downloadFile(file.id);
-      const blob = new Blob([response], { type: file.content_type });
+      // Log the file object to debug
+      console.log('Downloading file:', file);
+
+      if (!file.id) {
+        throw new Error('File ID not available');
+      }
+
+      // Get presigned URL using file ID (backend will look up minio_path)
+      const response = await api.get(`/files/download-url?file_id=${encodeURIComponent(file.id)}`);
+
+      if (!response || !response.presigned_url) {
+        throw new Error('Failed to get download URL');
+      }
+
+      // Fetch the file from the presigned URL
+      const fileResponse = await fetch(response.presigned_url);
+      if (!fileResponse.ok) {
+        throw new Error('Failed to download file');
+      }
+
+      const blob = await fileResponse.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -175,6 +194,8 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+
+      window.toast?.success('Dosya indiriliyor...');
     } catch (error) {
       console.error('Dosya indirme hatası:', error);
       window.toast?.error('Dosya indirilirken hata oluştu');

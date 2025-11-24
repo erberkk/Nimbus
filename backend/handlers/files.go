@@ -115,9 +115,11 @@ func CreateFile(cfg *config.Config) fiber.Handler {
 			"message": "Dosya başarıyla kaydedildi",
 			"file": models.FileResponse{
 				ID:               file.ID.Hex(),
+				UserID:           file.UserID,
 				Filename:         file.Filename,
 				Size:             file.Size,
 				ContentType:      file.ContentType,
+				MinioPath:        file.MinioPath,
 				PublicLink:       file.PublicLink,
 				AccessList:       file.AccessList,
 				ProcessingStatus: file.ProcessingStatus,
@@ -214,17 +216,60 @@ func ProcessDocument(cfg *config.Config) fiber.Handler {
 // Download için presigned URL al
 func GetDownloadPresignedURL(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		user := c.Locals("user").(*models.Claims)
-
-		filename := c.Query("filename")
-		if filename == "" {
-			return middleware.BadRequestResponse(c, "filename parametresi gerekli")
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return middleware.BadRequestResponse(c, err.Error())
 		}
 
-		// 1 saatlik presigned URL oluştur
+		fileID := c.Query("file_id")
+		if fileID == "" {
+			// Fallback: use filename if file_id not provided (for backward compatibility)
+			filename := c.Query("filename")
+			if filename == "" {
+				return middleware.BadRequestResponse(c, "file_id veya filename parametresi gerekli")
+			}
+
+			// For own files, use current user's ID
+			presignedURL, err := services.MinioService.GenerateDownloadPresignedURL(
+				userID,
+				filename,
+				time.Hour,
+			)
+			if err != nil {
+				log.Printf("Download presigned URL oluşturma hatası: %v", err)
+				return c.Status(404).JSON(fiber.Map{
+					"error": "Dosya bulunamadı veya presigned URL oluşturulamadı",
+				})
+			}
+
+			return c.JSON(fiber.Map{
+				"presigned_url": presignedURL,
+				"filename":      filename,
+				"expires_in":    3600,
+			})
+		}
+
+		// Get file from MongoDB using file_id
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			log.Printf("Dosya bulunamadı: %v", err)
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Dosya bulunamadı",
+			})
+		}
+
+		// Check access using helper function
+		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
+		if err != nil || !hasAccess {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Bu dosyaya erişim yetkiniz yok",
+			})
+		}
+
+		// Use file owner's UserID to generate presigned URL (file is stored in owner's folder)
 		presignedURL, err := services.MinioService.GenerateDownloadPresignedURL(
-			user.UserID,
-			filename,
+			file.UserID,
+			file.Filename,
 			time.Hour,
 		)
 		if err != nil {
@@ -236,7 +281,7 @@ func GetDownloadPresignedURL(cfg *config.Config) fiber.Handler {
 
 		return c.JSON(fiber.Map{
 			"presigned_url": presignedURL,
-			"filename":      filename,
+			"filename":      file.Filename,
 			"expires_in":    3600, // saniye cinsinden
 		})
 	}
@@ -335,9 +380,11 @@ func ListUserFiles(cfg *config.Config) fiber.Handler {
 		for _, file := range files {
 			fileList = append(fileList, models.FileResponse{
 				ID:               file.ID.Hex(),
+				UserID:           file.UserID,
 				Filename:         file.Filename,
 				Size:             file.Size,
 				ContentType:      file.ContentType,
+				MinioPath:        file.MinioPath,
 				PublicLink:       file.PublicLink,
 				AccessList:       file.AccessList,
 				ParentID:         file.ParentID,

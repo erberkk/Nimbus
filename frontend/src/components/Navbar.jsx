@@ -12,7 +12,6 @@ import {
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import CloudIcon from '@mui/icons-material/Cloud';
 import LanguageIcon from '@mui/icons-material/Language';
 import AuthButton from './AuthButton';
 
@@ -50,16 +49,24 @@ const Navbar = () => {
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1 }}>
             <Box
               sx={{
-                width: 40,
-                height: 40,
+                width: 56,
+                height: 56,
                 borderRadius: 2,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                overflow: 'hidden',
               }}
             >
-              <CloudIcon sx={{ color: 'white', fontSize: 24 }} />
+              <img
+                src="/nimbus_logo.png"
+                alt="Nimbus Logo"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                }}
+              />
             </Box>
             <Typography
               variant="h5"

@@ -14,6 +14,10 @@ import {
   TableRow,
   Checkbox,
   IconButton,
+  Paper,
+  Chip,
+  Avatar,
+  Tooltip,
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
@@ -25,9 +29,13 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import FolderCard from './FolderCard';
 import FileCard from './FileCard';
+import FileItemMenu from './FileItemMenu';
+import FileTypeIcon from './FileTypeIcon';
+import FileExtensionBadge from './FileExtensionBadge';
 import NimbusChatPanel from './NimbusChatPanel';
 import FileInfoPanel from './FileInfoPanel';
 import { isPreviewable, formatFileSize, formatDate } from '../utils/fileUtils';
+import { formatRelativeTime, getFileTypeColor } from '../utils/fileTypeUtils';
 
 const MotionBox = motion.create(Box);
 
@@ -100,6 +108,247 @@ const FileExplorerContent = ({
     } catch (error) {
       window.toast?.error(t('folder.upload_error', { error: error.message }));
     }
+  };
+
+  const MotionBox = motion.create(Box);
+
+  // Separate component for file row to handle menu state
+  const FileRow = ({ file, onPreview, onFileInfo, onFileDownload, onEdit, handleAskNimbus, onShare, onFileDelete }) => {
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const fileIsPreviewable = isPreviewable(file?.content_type, file?.filename);
+    const colors = getFileTypeColor(file?.content_type, file?.filename);
+
+    return (
+      <>
+        <TableRow
+          component={motion.tr}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          hover
+          onClick={() => {
+            if (fileIsPreviewable && onPreview) {
+              onPreview(file);
+            }
+          }}
+          sx={{
+            cursor: fileIsPreviewable ? 'pointer' : 'default',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              backgroundColor: `${colors.light}40`,
+              transform: 'translateX(4px)',
+            },
+            '& td': {
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+            },
+          }}
+        >
+          <TableCell padding="checkbox" onClick={e => e.stopPropagation()}>
+            <Checkbox />
+          </TableCell>
+          <TableCell>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <FileTypeIcon filename={file.filename} contentType={file.content_type} size={28} />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {file.filename}
+                  </Typography>
+                  <FileExtensionBadge filename={file.filename} contentType={file.content_type} />
+                </Box>
+                {file.processing_status === 'processing' && (
+                  <Chip
+                    label="İşleniyor..."
+                    size="small"
+                    color="info"
+                    sx={{ height: 18, fontSize: '0.65rem', width: 'fit-content' }}
+                  />
+                )}
+              </Box>
+            </Box>
+          </TableCell>
+          <TableCell>
+            <Tooltip title={file.user_id || 'Bilinmiyor'}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: colors.primary }}>
+                  {(file.user_id || 'U')[0].toUpperCase()}
+                </Avatar>
+                <Typography variant="body2" color="text.secondary">
+                  {file.user_id ? file.user_id.substring(0, 8) + '...' : 'Bilinmiyor'}
+                </Typography>
+              </Box>
+            </Tooltip>
+          </TableCell>
+          <TableCell>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+              {formatFileSize(file.size)}
+            </Typography>
+          </TableCell>
+          <TableCell>
+            <Tooltip title={formatDate(file.updated_at)}>
+              <Typography variant="body2" color="text.secondary">
+                {formatRelativeTime(file.updated_at)}
+              </Typography>
+            </Tooltip>
+          </TableCell>
+          <TableCell padding="checkbox" onClick={e => e.stopPropagation()}>
+            <IconButton
+              size="small"
+              onClick={e => {
+                e.stopPropagation();
+                setMenuAnchor(e.currentTarget);
+              }}
+              sx={{
+                opacity: 0.6,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  opacity: 1,
+                  backgroundColor: `${colors.primary}20`,
+                },
+              }}
+            >
+              <MoreVertIcon />
+            </IconButton>
+          </TableCell>
+        </TableRow>
+        <FileItemMenu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={() => setMenuAnchor(null)}
+          item={file}
+          itemType="file"
+          onInfo={() => onFileInfo(file)}
+          onDownload={() => onFileDownload(file)}
+          onEdit={() => onEdit(file)}
+          onAskNimbus={() => handleAskNimbus(file)}
+          onShare={() => onShare(file, 'file')}
+          onMove={undefined} // Not implemented yet
+          onDelete={() => onFileDelete(file)}
+        />
+      </>
+    );
+  };
+
+  // Separate component for folder row to handle menu state
+  const FolderRow = ({ folder, onFolderOpen, onShare, onFolderDelete }) => {
+    const { t } = useTranslation();
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const folderColor = folder.color || '#1976d2';
+
+    return (
+      <>
+        <TableRow
+          component={motion.tr}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          hover
+          sx={{
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              backgroundColor: `${folderColor}10`,
+              transform: 'translateX(4px)',
+            },
+            '& td': {
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+            },
+          }}
+          onClick={() => onFolderOpen(folder)}
+        >
+          <TableCell padding="checkbox">
+            <Checkbox />
+          </TableCell>
+          <TableCell>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 44,
+                  height: 44,
+                  borderRadius: 1.5,
+                  backgroundColor: `${folderColor}15`,
+                  border: `1px solid ${folderColor}30`,
+                }}
+              >
+                <FolderIcon sx={{ color: folderColor, fontSize: 28 }} />
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {folder.name}
+              </Typography>
+            </Box>
+          </TableCell>
+          <TableCell>
+            <Tooltip title={folder.user_id || 'Bilinmiyor'}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: folderColor }}>
+                  {(folder.user_id || 'U')[0].toUpperCase()}
+                </Avatar>
+                <Typography variant="body2" color="text.secondary">
+                  {folder.user_id ? folder.user_id.substring(0, 8) + '...' : 'Bilinmiyor'}
+                </Typography>
+              </Box>
+            </Tooltip>
+          </TableCell>
+          <TableCell>
+            <Chip
+              label={
+                folder.item_count
+                  ? t('folder.items', { count: folder.item_count })
+                  : t('folder.items_zero')
+              }
+              size="small"
+              sx={{
+                backgroundColor: `${folderColor}15`,
+                color: folderColor,
+                fontWeight: 600,
+                border: `1px solid ${folderColor}30`,
+              }}
+            />
+          </TableCell>
+          <TableCell>
+            <Tooltip title={formatDate(folder.updated_at)}>
+              <Typography variant="body2" color="text.secondary">
+                {formatRelativeTime(folder.updated_at)}
+              </Typography>
+            </Tooltip>
+          </TableCell>
+          <TableCell padding="checkbox" onClick={e => e.stopPropagation()}>
+            <IconButton
+              size="small"
+              onClick={e => {
+                e.stopPropagation();
+                setMenuAnchor(e.currentTarget);
+              }}
+              sx={{
+                opacity: 0.6,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  opacity: 1,
+                  backgroundColor: `${folderColor}20`,
+                },
+              }}
+            >
+              <MoreVertIcon />
+            </IconButton>
+          </TableCell>
+        </TableRow>
+        <FileItemMenu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={() => setMenuAnchor(null)}
+          item={folder}
+          itemType="folder"
+          onShare={() => onShare(folder, 'folder')}
+          onMove={undefined} // Not implemented yet
+          onDelete={() => onFolderDelete(folder)}
+        />
+      </>
+    );
   };
 
   // Tek dosya yükleme fonksiyonu
@@ -409,125 +658,115 @@ const FileExplorerContent = ({
         ) : (
           /* List View - Only show when there's content */
           <Box sx={{ flex: 1, overflow: 'hidden' }}>
-            <TableContainer sx={{ height: '100%' }}>
-              <Table>
+            <TableContainer
+              component={Paper}
+              elevation={0}
+              sx={{
+                height: '100%',
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 2,
+                overflow: 'auto',
+              }}
+            >
+              <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell padding="checkbox">
+                    <TableCell
+                      padding="checkbox"
+                      sx={{
+                        backgroundColor: 'background.paper',
+                        fontWeight: 600,
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                      }}
+                    >
                       <Checkbox />
                     </TableCell>
-                    <TableCell>Ad</TableCell>
-                    <TableCell>Sahip</TableCell>
-                    <TableCell>Boyut</TableCell>
-                    <TableCell>Değiştirilme</TableCell>
-                    <TableCell padding="checkbox"></TableCell>
+                    <TableCell
+                      sx={{
+                        backgroundColor: 'background.paper',
+                        fontWeight: 700,
+                        fontSize: '0.875rem',
+                        color: 'text.primary',
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      Ad
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        backgroundColor: 'background.paper',
+                        fontWeight: 700,
+                        fontSize: '0.875rem',
+                        color: 'text.primary',
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      Sahip
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        backgroundColor: 'background.paper',
+                        fontWeight: 700,
+                        fontSize: '0.875rem',
+                        color: 'text.primary',
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      Boyut
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        backgroundColor: 'background.paper',
+                        fontWeight: 700,
+                        fontSize: '0.875rem',
+                        color: 'text.primary',
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      Değiştirilme
+                    </TableCell>
+                    <TableCell
+                      padding="checkbox"
+                      sx={{
+                        backgroundColor: 'background.paper',
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                      }}
+                    ></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {/* Folders */}
                   {fileExplorer.folders.map(folder => (
-                    <TableRow
+                    <FolderRow
                       key={folder.id}
-                      hover
-                      sx={{ cursor: 'pointer' }}
-                      onClick={() => onFolderOpen(folder)}
-                      onContextMenu={e => onMenuOpen(e, { ...folder, type: 'folder' })}
-                    >
-                      <TableCell padding="checkbox">
-                        <Checkbox />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <FolderIcon sx={{ color: folder.color || '#1976d2' }} />
-                          <Typography variant="body2">{folder.name}</Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {folder.owner?.name || 'Bilinmiyor'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {folder.item_count
-                            ? t('folder.items', { count: folder.item_count })
-                            : t('folder.items_zero')}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {formatDate(folder.updated_at)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell padding="checkbox">
-                        <IconButton
-                          size="small"
-                          onClick={e => {
-                            e.stopPropagation();
-                            onMenuOpen(e, { ...folder, type: 'folder' });
-                          }}
-                        >
-                          <MoreVertIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
+                      folder={folder}
+                      onFolderOpen={onFolderOpen}
+                      onShare={onShare}
+                      onFolderDelete={onFolderDelete}
+                    />
                   ))}
 
                   {/* Files */}
-                  {fileExplorer.files.map(file => {
-                    const fileIsPreviewable = isPreviewable(file?.content_type, file?.filename);
-
-                    return (
-                      <TableRow
-                        key={file.id}
-                        hover
-                        onClick={() => {
-                          if (fileIsPreviewable && onPreview) {
-                            onPreview(file);
-                          }
-                        }}
-                        sx={{
-                          cursor: fileIsPreviewable ? 'pointer' : 'default',
-                        }}
-                      >
-                        <TableCell padding="checkbox" onClick={e => e.stopPropagation()}>
-                          <Checkbox />
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <InsertDriveFileIcon />
-                            <Typography variant="body2">{file.filename}</Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary">
-                            {file.owner?.name || 'Bilinmiyor'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary">
-                            {formatFileSize(file.size)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary">
-                            {formatDate(file.updated_at)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell padding="checkbox" onClick={e => e.stopPropagation()}>
-                          <IconButton
-                            size="small"
-                            onClick={e => {
-                              e.stopPropagation();
-                              onMenuOpen(e, { ...file, type: 'file' });
-                            }}
-                          >
-                            <MoreVertIcon />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {fileExplorer.files.map(file => (
+                    <FileRow
+                      key={file.id}
+                      file={file}
+                      onPreview={onPreview}
+                      onFileInfo={handleFileInfo}
+                      onFileDownload={onFileDownload}
+                      onEdit={onEdit}
+                      handleAskNimbus={handleAskNimbus}
+                      onShare={onShare}
+                      onFileDelete={onFileDelete}
+                    />
+                  ))}
                 </TableBody>
               </Table>
             </TableContainer>

@@ -120,17 +120,25 @@ const LandingPage = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
               <Box
                 sx={{
-                  width: 40,
-                  height: 40,
+                  width: 56,
+                  height: 56,
                   borderRadius: 2,
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   mr: 1.5,
+                  overflow: 'hidden',
                 }}
               >
-                <CloudIcon sx={{ color: 'white', fontSize: 24 }} />
+                <img
+                  src="/nimbus_logo.png"
+                  alt="Nimbus Logo"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                  }}
+                />
               </Box>
               <Typography
                 variant="h5"
@@ -585,17 +593,25 @@ const LandingPage = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Box
                     sx={{
-                      width: 32,
-                      height: 32,
+                      width: 48,
+                      height: 48,
                       borderRadius: 1.5,
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       mr: 1.5,
+                      overflow: 'hidden',
                     }}
                   >
-                    <CloudIcon sx={{ color: 'white', fontSize: 20 }} />
+                    <img
+                      src="/nimbus_logo.png"
+                      alt="Nimbus Logo"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                      }}
+                    />
                   </Box>
                   <Typography variant="h6" fontWeight={700}>
                     {t('nimbus')}

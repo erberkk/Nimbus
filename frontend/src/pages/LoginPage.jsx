@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import GoogleIcon from '@mui/icons-material/Google';
-import CloudIcon from '@mui/icons-material/Cloud';
 import SecurityIcon from '@mui/icons-material/Security';
 import SpeedIcon from '@mui/icons-material/Speed';
 import { authApi } from '../services/api';
@@ -31,7 +30,13 @@ const LoginPage = () => {
 
   const features = [
     {
-      icon: <CloudIcon sx={{ fontSize: 40, color: '#FBBF24' }} />,
+      icon: (
+        <img
+          src="/nimbus_logo.png"
+          alt="Cloud Storage"
+          style={{ width: 56, height: 56, objectFit: 'contain' }}
+        />
+      ),
       title: t('cloud_storage'),
       description: t('cloud_storage_desc'),
     },
@@ -170,17 +175,26 @@ const LoginPage = () => {
               <Stack spacing={3} alignItems="center">
                 <Box
                   sx={{
-                    width: 80,
-                    height: 80,
+                    width: 120,
+                    height: 120,
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     mb: 2,
+                    overflow: 'hidden',
+                    p: 1,
                   }}
                 >
-                  <CloudIcon sx={{ fontSize: 48, color: 'white' }} />
+                  <img
+                    src="/nimbus_logo.png"
+                    alt="Nimbus Logo"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                    }}
+                  />
                 </Box>
 
                 <Box textAlign="center">

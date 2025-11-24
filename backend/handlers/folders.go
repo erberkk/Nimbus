@@ -179,9 +179,11 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 		for _, file := range files {
 			fileList = append(fileList, models.FileResponse{
 				ID:               file.ID.Hex(),
+				UserID:           file.UserID,
 				Filename:         file.Filename,
 				Size:             file.Size,
 				ContentType:      file.ContentType,
+				MinioPath:        file.MinioPath,
 				PublicLink:       file.PublicLink,
 				AccessList:       file.AccessList,
 				ParentID:         file.ParentID,
@@ -306,9 +308,11 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 		for _, file := range files {
 			fileList = append(fileList, models.FileResponse{
 				ID:               file.ID.Hex(),
+				UserID:           file.UserID,
 				Filename:         file.Filename,
 				Size:             file.Size,
 				ContentType:      file.ContentType,
+				MinioPath:        file.MinioPath,
 				PublicLink:       file.PublicLink,
 				AccessList:       file.AccessList,
 				ParentID:         file.ParentID,

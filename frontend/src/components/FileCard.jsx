@@ -4,8 +4,6 @@ import {
   Typography,
   IconButton,
   Box,
-  Menu,
-  MenuItem,
   Chip,
   CircularProgress,
 } from '@mui/material';
@@ -17,17 +15,10 @@ import ImageIcon from '@mui/icons-material/Image';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import DownloadIcon from '@mui/icons-material/Download';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
-import ShareIcon from '@mui/icons-material/Share';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
-import EditIcon from '@mui/icons-material/Edit';
-import InfoIcon from '@mui/icons-material/Info';
+import FileItemMenu from './FileItemMenu';
 import {
   isPreviewable,
   isAskableFile,
-  isEditable,
   formatFileSize,
   formatDate,
   formatContentType,
@@ -85,67 +76,8 @@ const FileCard = ({
     }
   };
 
-  const handleDownload = e => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (onDownload) {
-      onDownload(file);
-    }
-  };
-
-  const handleDelete = e => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (onDelete) {
-      onDelete(file);
-    }
-  };
-
-  const handleMove = e => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (onMove) {
-      onMove(file);
-    }
-  };
-
-  const handleShare = e => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (onShare) {
-      onShare(file);
-    }
-  };
-
-  const handleAskNimbus = e => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (onAskNimbus) {
-      onAskNimbus(file);
-    }
-  };
-
-  const handleEdit = e => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (onEdit) {
-      onEdit(file);
-    }
-  };
-
-  const handleInfo = e => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (onInfo) {
-      onInfo(file);
-    }
-  };
-
   // Word ve PDF dosyaları için Nimbus'a Sor seçeneğini göster
   const fileIsAskable = isAskableFile(file?.content_type, file?.filename);
-
-  // Word, Excel, PowerPoint dosyaları için Düzenle seçeneğini göster
-  const fileIsEditable = isEditable(file?.content_type, file?.filename);
 
   return (
     <MotionCard
@@ -249,53 +181,20 @@ const FileCard = ({
         </Box>
       </CardContent>
 
-      <Menu
+      <FileItemMenu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
-        onClick={e => e.stopPropagation()}
-      >
-        <MenuItem onClick={handleInfo}>
-          <InfoIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          {t('info')}
-        </MenuItem>
-        <MenuItem onClick={handleDownload}>
-          <DownloadIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          {t('download')}
-        </MenuItem>
-        {fileIsEditable && (
-          <MenuItem onClick={handleEdit} sx={{ color: '#667eea' }}>
-            <EditIcon sx={{ mr: 1.5, fontSize: 20 }} />
-            {t('edit')}
-          </MenuItem>
-        )}
-        {fileIsAskable && (
-          <MenuItem
-            onClick={handleAskNimbus}
-            disabled={file.processing_status !== 'completed'}
-            sx={{ color: '#667eea' }}
-          >
-            <SmartToyIcon sx={{ mr: 1.5, fontSize: 20 }} />
-            {file.processing_status === 'processing'
-              ? t('ai.ask_nimbus_processing')
-              : file.processing_status === 'failed'
-                ? t('ai.ask_nimbus_error')
-                : t('ai.ask_nimbus')}
-          </MenuItem>
-        )}
-        <MenuItem onClick={handleShare}>
-          <ShareIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          {t('share')}
-        </MenuItem>
-        <MenuItem onClick={handleMove}>
-          <DriveFileMoveIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          {t('move')}
-        </MenuItem>
-        <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
-          <DeleteIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          {t('delete')}
-        </MenuItem>
-      </Menu>
+        item={file}
+        itemType="file"
+        onInfo={onInfo}
+        onDownload={onDownload}
+        onEdit={onEdit}
+        onAskNimbus={onAskNimbus}
+        onShare={onShare}
+        onMove={onMove}
+        onDelete={onDelete}
+      />
     </MotionCard>
   );
 };

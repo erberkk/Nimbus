@@ -37,9 +37,11 @@ type File struct {
 
 type FileResponse struct {
 	ID               string               `json:"id"`
+	UserID           string               `json:"user_id"`           // Owner of the file
 	Filename         string               `json:"filename"`
 	Size             int64                `json:"size"`
 	ContentType      string               `json:"content_type"`
+	MinioPath        string               `json:"minio_path"`        // Path in MinIO storage
 	PublicLink       string               `json:"public_link"`
 	AccessList       []AccessEntry        `json:"access_list"`
 	ParentID         *primitive.ObjectID  `json:"parent_id,omitempty"`
