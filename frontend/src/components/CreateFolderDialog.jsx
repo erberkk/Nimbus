@@ -43,9 +43,36 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{t('folder.create')}</DialogTitle>
-      <DialogContent>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{
+        sx: {
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(102, 126, 234, 0.2)',
+          boxShadow: '0 12px 48px 0 rgba(31, 38, 135, 0.25)',
+          borderRadius: 3,
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          fontWeight: 600,
+          py: 2,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+        }}
+      >
+        <FolderIcon />
+        {t('folder.create')}
+      </DialogTitle>
+      <DialogContent sx={{ pt: 3 }}>
         <Box sx={{ mt: 2 }}>
           <TextField
             autoFocus
@@ -96,12 +123,14 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
           <Box
             sx={{
               mt: 3,
-              p: 2,
+              p: 2.5,
               borderRadius: 2,
-              backgroundColor: 'grey.100',
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%)',
+              border: '1px solid rgba(102, 126, 234, 0.15)',
               display: 'flex',
               alignItems: 'center',
               gap: 2,
+              transition: 'all 0.3s ease',
             }}
           >
             <Box
@@ -126,8 +155,20 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
           </Box>
         </Box>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={handleClose} color="inherit">
+      <DialogActions sx={{ px: 3, pb: 3, gap: 1.5 }}>
+        <Button
+          onClick={handleClose}
+          variant="outlined"
+          sx={{
+            borderColor: 'rgba(102, 126, 234, 0.3)',
+            color: 'text.secondary',
+            '&:hover': {
+              borderColor: 'rgba(102, 126, 234, 0.5)',
+              backgroundColor: 'rgba(102, 126, 234, 0.05)',
+            },
+            transition: 'all 0.3s ease',
+          }}
+        >
           {t('cancel')}
         </Button>
         <Button
@@ -137,12 +178,18 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
           sx={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
+            fontWeight: 600,
+            px: 3,
             '&:hover': {
               background: 'linear-gradient(135deg, #5568d3 0%, #653a8b 100%)',
               transform: 'translateY(-2px)',
-              boxShadow: '0 8px 20px rgba(102, 126, 234, 0.3)',
+              boxShadow: '0 8px 24px rgba(102, 126, 234, 0.4)',
             },
-            transition: 'all 0.3s ease',
+            '&:disabled': {
+              background: 'rgba(0, 0, 0, 0.12)',
+              color: 'rgba(0, 0, 0, 0.26)',
+            },
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
         >
           Oluştur

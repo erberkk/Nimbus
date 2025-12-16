@@ -16,6 +16,8 @@ type Folder struct {
 	Color      string               `json:"color" bson:"color,omitempty"`
 	PublicLink string               `json:"public_link" bson:"public_link"`
 	AccessList []AccessEntry        `json:"access_list" bson:"access_list"`
+	IsStarred  bool                 `json:"is_starred" bson:"is_starred"`
+	DeletedAt  *time.Time           `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
 	CreatedAt  time.Time            `json:"created_at" bson:"created_at"`
 	UpdatedAt  time.Time            `json:"updated_at" bson:"updated_at"`
 }
@@ -30,6 +32,8 @@ type FolderResponse struct {
 	ParentID   *primitive.ObjectID  `json:"parent_id,omitempty"`
 	Ancestors  []primitive.ObjectID `json:"ancestors"`
 	FolderID   *string              `json:"folder_id"`
+	IsStarred  bool                 `json:"is_starred"`
+	DeletedAt  *time.Time           `json:"deleted_at,omitempty"`
 	CreatedAt  time.Time            `json:"created_at"`
 	UpdatedAt  time.Time            `json:"updated_at"`
 }

@@ -13,13 +13,10 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FolderIcon from '@mui/icons-material/Folder';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import ShareIcon from '@mui/icons-material/Share';
+import FileItemMenu from './FileItemMenu';
 
 const MotionCard = motion.create(Card);
-
-const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
+const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare, onMove, onToggleStar, onRestore, onMenuOpen }) => {
   const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -32,27 +29,11 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
     setAnchorEl(null);
   };
 
-  const handleDelete = e => {
+  const handleContextMenu = (e) => {
+    e.preventDefault();
     e.stopPropagation();
-    handleMenuClose();
-    if (onDelete) {
-      onDelete(folder);
-    }
-  };
-
-  const handleEdit = e => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (onEdit) {
-      onEdit(folder);
-    }
-  };
-
-  const handleShare = e => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (onShare) {
-      onShare(folder);
+    if (onMenuOpen) {
+      onMenuOpen(e, { ...folder, type: 'folder' });
     }
   };
 
@@ -64,14 +45,26 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
 
   return (
     <MotionCard
-      whileHover={{ y: -4, boxShadow: '0px 8px 24px rgba(0,0,0,0.12)' }}
+      data-context-menu-handled
+      initial={false}
+      whileHover={{ y: -4, boxShadow: '0px 12px 40px rgba(102, 126, 234, 0.15)' }}
       whileTap={{ scale: 0.98 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       onClick={() => onOpen && onOpen(folder)}
+      onContextMenu={handleContextMenu}
       sx={{
         cursor: 'pointer',
         position: 'relative',
         transition: 'all 0.3s ease',
         height: '100%',
+        background: 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.5)',
+        borderRadius: 3,
+        '&:hover': {
+          background: 'rgba(255, 255, 255, 0.85)',
+          border: '1px solid rgba(102, 126, 234, 0.3)',
+        },
       }}
     >
       <CardContent sx={{ p: 2.5 }}>
@@ -81,11 +74,13 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
               width: 60,
               height: 60,
               borderRadius: 2,
-              background: `linear-gradient(135deg, ${getFolderColor()} 0%, ${getFolderColor()}dd 100%)`,
+              background: `linear-gradient(135deg, ${getFolderColor()} 20%, ${getFolderColor()}99 100%)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               mb: 2,
+              backdropFilter: 'blur(10px)',
+              boxShadow: `0 4px 20px ${getFolderColor()}40`,
             }}
           >
             <FolderIcon sx={{ fontSize: 36, color: 'white' }} />
@@ -132,25 +127,19 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare }) => {
         </Box>
       </CardContent>
 
-      <Menu
+      <FileItemMenu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
-        onClick={e => e.stopPropagation()}
-      >
-        <MenuItem onClick={handleEdit}>
-          <EditIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          {t('folder.rename')}
-        </MenuItem>
-        <MenuItem onClick={handleShare}>
-          <ShareIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          {t('share')}
-        </MenuItem>
-        <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
-          <DeleteIcon sx={{ mr: 1.5, fontSize: 20 }} />
-          {t('delete')}
-        </MenuItem>
-      </Menu>
+        item={{ ...folder, isTrash: !!folder.deleted_at }}
+        itemType="folder"
+        onEdit={onEdit}
+        onShare={onShare}
+        onMove={(item) => onMove(item, 'folder')}
+        onToggleStar={onToggleStar}
+        onRestore={onRestore}
+        onDelete={onDelete}
+      />
     </MotionCard>
   );
 };

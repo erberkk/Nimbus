@@ -50,6 +50,9 @@ const FileCard = ({
   onPreview,
   onEdit,
   onInfo,
+  onToggleStar,
+  onRestore,
+  onMenuOpen,
 }) => {
   const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState(null);
@@ -79,16 +82,36 @@ const FileCard = ({
   // Word ve PDF dosyaları için Nimbus'a Sor seçeneğini göster
   const fileIsAskable = isAskableFile(file?.content_type, file?.filename);
 
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onMenuOpen) {
+      onMenuOpen(e, { ...file, type: 'file' });
+    }
+  };
+
   return (
     <MotionCard
-      whileHover={{ y: -4, boxShadow: '0px 8px 24px rgba(0,0,0,0.12)' }}
+      data-context-menu-handled
+      initial={false}
+      whileHover={{ y: -4, boxShadow: '0px 12px 40px rgba(102, 126, 234, 0.15)' }}
       whileTap={{ scale: 0.98 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       onClick={handleCardClick}
+      onContextMenu={handleContextMenu}
       sx={{
         cursor: fileIsPreviewable ? 'pointer' : 'default',
         position: 'relative',
         transition: 'all 0.3s ease',
         height: '100%',
+        background: 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.5)',
+        borderRadius: 3,
+        '&:hover': {
+          background: 'rgba(255, 255, 255, 0.85)',
+          border: '1px solid rgba(102, 126, 234, 0.3)',
+        },
       }}
     >
       <CardContent sx={{ p: 2.5 }}>
@@ -98,11 +121,13 @@ const FileCard = ({
               width: 60,
               height: 60,
               borderRadius: 2,
-              backgroundColor: 'grey.100',
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               mb: 2,
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(102, 126, 234, 0.2)',
             }}
           >
             {getFileIcon(file.content_type)}
@@ -185,14 +210,16 @@ const FileCard = ({
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
-        item={file}
+        item={{ ...file, isTrash: !!file.deleted_at }}
         itemType="file"
         onInfo={onInfo}
         onDownload={onDownload}
         onEdit={onEdit}
         onAskNimbus={onAskNimbus}
         onShare={onShare}
-        onMove={onMove}
+        onMove={(item) => onMove(item, 'file')}
+        onToggleStar={onToggleStar}
+        onRestore={onRestore}
         onDelete={onDelete}
       />
     </MotionCard>

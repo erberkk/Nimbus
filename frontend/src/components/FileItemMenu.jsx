@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -8,27 +7,31 @@ import ShareIcon from '@mui/icons-material/Share';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import EditIcon from '@mui/icons-material/Edit';
 import InfoIcon from '@mui/icons-material/Info';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
+import RestoreFromTrashIcon from '@mui/icons-material/RestoreFromTrash';
 import { isAskableFile, isEditable } from '../utils/fileUtils';
 
-/**
- * Unified menu component for file operations
- * Used by both card view (FileCard) and list view
- */
 const FileItemMenu = ({
     anchorEl,
     open,
     onClose,
-    item, // file or folder object
-    itemType, // 'file' or 'folder'
+    item,
+    itemType,
     onInfo,
     onDownload,
     onEdit,
     onAskNimbus,
     onShare,
     onMove,
+    onToggleStar,
+    onRestore,
     onDelete,
 }) => {
     const { t } = useTranslation();
+
+    const isTrash = (item && !!item.deleted_at) || (item && item.isTrash === true);
+    const isStarred = item && !!item.is_starred;
 
     const handleAction = (action, ...args) => {
         if (action) {
@@ -46,7 +49,7 @@ const FileItemMenu = ({
     const folderMenuItems = [];
 
     if (itemType === 'file') {
-        if (onInfo) {
+        if (onInfo && !isTrash) {
             fileMenuItems.push(
                 <MenuItem key="info" onClick={() => handleAction(onInfo, item)}>
                     <ListItemIcon>
@@ -56,7 +59,7 @@ const FileItemMenu = ({
                 </MenuItem>
             );
         }
-        if (onDownload) {
+        if (onDownload && !isTrash) {
             fileMenuItems.push(
                 <MenuItem key="download" onClick={() => handleAction(onDownload, item)}>
                     <ListItemIcon>
@@ -66,7 +69,7 @@ const FileItemMenu = ({
                 </MenuItem>
             );
         }
-        if (fileIsEditable && onEdit) {
+        if (fileIsEditable && onEdit && !isTrash) {
             fileMenuItems.push(
                 <MenuItem key="edit" onClick={() => handleAction(onEdit, item)} sx={{ color: '#667eea' }}>
                     <ListItemIcon>
@@ -76,7 +79,7 @@ const FileItemMenu = ({
                 </MenuItem>
             );
         }
-        if (fileIsAskable && onAskNimbus) {
+        if (fileIsAskable && onAskNimbus && !isTrash) {
             fileMenuItems.push(
                 <MenuItem
                     key="ask-nimbus"
@@ -97,7 +100,17 @@ const FileItemMenu = ({
                 </MenuItem>
             );
         }
-        if (onShare) {
+        if (onToggleStar && !isTrash) {
+            fileMenuItems.push(
+                <MenuItem key="star" onClick={() => handleAction(onToggleStar, item)}>
+                    <ListItemIcon>
+                        {isStarred ? <StarIcon fontSize="small" sx={{ color: '#FFD700' }} /> : <StarBorderIcon fontSize="small" />}
+                    </ListItemIcon>
+                    <ListItemText>{isStarred ? t('starred.remove') : t('starred.add')}</ListItemText>
+                </MenuItem>
+            );
+        }
+        if (onShare && !isTrash) {
             fileMenuItems.push(
                 <MenuItem key="share" onClick={() => handleAction(onShare, item)}>
                     <ListItemIcon>
@@ -107,13 +120,23 @@ const FileItemMenu = ({
                 </MenuItem>
             );
         }
-        if (onMove) {
+        if (onMove && !isTrash) {
             fileMenuItems.push(
-                <MenuItem key="move" onClick={() => handleAction(onMove, item)}>
+                <MenuItem key="move" onClick={() => handleAction(onMove, item, itemType)}>
                     <ListItemIcon>
                         <DriveFileMoveIcon fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('move')}</ListItemText>
+                </MenuItem>
+            );
+        }
+        if (onRestore && isTrash) {
+            fileMenuItems.push(
+                <MenuItem key="restore" onClick={() => handleAction(onRestore, item)}>
+                    <ListItemIcon>
+                        <RestoreFromTrashIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t('restore')}</ListItemText>
                 </MenuItem>
             );
         }
@@ -128,8 +151,17 @@ const FileItemMenu = ({
             );
         }
     } else {
-        // Folder menu items
-        if (onShare) {
+        if (onToggleStar && !isTrash) {
+            folderMenuItems.push(
+                <MenuItem key="star" onClick={() => handleAction(onToggleStar, item)}>
+                    <ListItemIcon>
+                        {isStarred ? <StarIcon fontSize="small" sx={{ color: '#FFD700' }} /> : <StarBorderIcon fontSize="small" />}
+                    </ListItemIcon>
+                    <ListItemText>{isStarred ? t('starred.remove') : t('starred.add')}</ListItemText>
+                </MenuItem>
+            );
+        }
+        if (onShare && !isTrash) {
             folderMenuItems.push(
                 <MenuItem key="share" onClick={() => handleAction(onShare, item)}>
                     <ListItemIcon>
@@ -139,13 +171,23 @@ const FileItemMenu = ({
                 </MenuItem>
             );
         }
-        if (onMove) {
+        if (onMove && !isTrash) {
             folderMenuItems.push(
-                <MenuItem key="move" onClick={() => handleAction(onMove, item)}>
+                <MenuItem key="move" onClick={() => handleAction(onMove, item, itemType)}>
                     <ListItemIcon>
                         <DriveFileMoveIcon fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('move')}</ListItemText>
+                </MenuItem>
+            );
+        }
+        if (onRestore && isTrash) {
+            folderMenuItems.push(
+                <MenuItem key="restore" onClick={() => handleAction(onRestore, item)}>
+                    <ListItemIcon>
+                        <RestoreFromTrashIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t('restore')}</ListItemText>
                 </MenuItem>
             );
         }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -43,8 +43,6 @@ const FileExplorerContent = ({
   fileExplorer,
   uiState,
   navigation,
-  onCreateFolder,
-  onFileUpload,
   onFolderOpen,
   onFileDownload,
   onFolderDelete,
@@ -54,6 +52,9 @@ const FileExplorerContent = ({
   onUploadSuccess,
   onPreview,
   onEdit,
+  onMove,
+  onToggleStar,
+  onRestore,
 }) => {
   const { t } = useTranslation();
   // Chat panel state
@@ -63,6 +64,18 @@ const FileExplorerContent = ({
   // File info panel state
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [selectedFileForInfo, setSelectedFileForInfo] = useState(null);
+
+  // Context menu handler - must be defined before any early returns
+  const handleEmptyContextMenu = useCallback(
+    e => {
+      if (e.target === e.currentTarget || e.target.closest('[data-context-menu-handled]')) {
+        return;
+      }
+      e.preventDefault();
+      onMenuOpen(e, null);
+    },
+    [onMenuOpen]
+  );
 
   // Nimbus'a Sor fonksiyonu
   const handleAskNimbus = file => {
@@ -113,7 +126,7 @@ const FileExplorerContent = ({
   const MotionBox = motion.create(Box);
 
   // Separate component for file row to handle menu state
-  const FileRow = ({ file, onPreview, onFileInfo, onFileDownload, onEdit, handleAskNimbus, onShare, onFileDelete }) => {
+  const FileRow = ({ file, onPreview, onFileInfo, onFileDownload, onEdit, handleAskNimbus, onShare, onFileDelete, onMove, onToggleStar, onRestore }) => {
     const [menuAnchor, setMenuAnchor] = useState(null);
     const fileIsPreviewable = isPreviewable(file?.content_type, file?.filename);
     const colors = getFileTypeColor(file?.content_type, file?.filename);
@@ -216,22 +229,24 @@ const FileExplorerContent = ({
           anchorEl={menuAnchor}
           open={Boolean(menuAnchor)}
           onClose={() => setMenuAnchor(null)}
-          item={file}
           itemType="file"
           onInfo={() => onFileInfo(file)}
           onDownload={() => onFileDownload(file)}
           onEdit={() => onEdit(file)}
           onAskNimbus={() => handleAskNimbus(file)}
           onShare={() => onShare(file, 'file')}
-          onMove={undefined} // Not implemented yet
+          onMove={() => onMove(file, 'file')}
+          onToggleStar={() => onToggleStar(file, 'file')}
+          onRestore={() => onRestore(file, 'file')}
           onDelete={() => onFileDelete(file)}
+        // Explicitly pass isTrash based on the item's data to ensure menu renders correctly
         />
       </>
     );
   };
 
   // Separate component for folder row to handle menu state
-  const FolderRow = ({ folder, onFolderOpen, onShare, onFolderDelete }) => {
+  const FolderRow = ({ folder, onFolderOpen, onShare, onFolderDelete, onMove, onToggleStar, onRestore }) => {
     const { t } = useTranslation();
     const [menuAnchor, setMenuAnchor] = useState(null);
     const folderColor = folder.color || '#1976d2';
@@ -341,11 +356,14 @@ const FileExplorerContent = ({
           anchorEl={menuAnchor}
           open={Boolean(menuAnchor)}
           onClose={() => setMenuAnchor(null)}
-          item={folder}
           itemType="folder"
           onShare={() => onShare(folder, 'folder')}
-          onMove={undefined} // Not implemented yet
+          onMove={() => onMove(folder, 'folder')}
+          onToggleStar={() => onToggleStar(folder, 'folder')}
+          onRestore={() => onRestore(folder, 'folder')}
           onDelete={() => onFolderDelete(folder)}
+          // Explicitly pass isTrash based on the item's data to ensure menu renders correctly
+          item={{ ...folder, isTrash: !!folder.deleted_at }}
         />
       </>
     );
@@ -356,7 +374,7 @@ const FileExplorerContent = ({
     const { fileApi } = await import('../services/api');
 
     // Presigned URL al
-    const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type);
+    const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type || 'application/octet-stream');
     const { presigned_url, minio_path } = presignedResponse;
 
     // Dosyayı MinIO'ya yükle
@@ -377,7 +395,7 @@ const FileExplorerContent = ({
     const fileData = {
       filename: file.name,
       size: file.size,
-      content_type: file.type,
+      content_type: file.type || 'application/octet-stream',
       minio_path: minio_path,
     };
 
@@ -385,7 +403,7 @@ const FileExplorerContent = ({
       fileData.folder_id = currentFolder.id;
     }
 
-    const result = await fileApi.createFile(fileData);
+    await fileApi.createFile(fileData);
   };
   if (fileExplorer.loading) {
     return (
@@ -398,10 +416,7 @@ const FileExplorerContent = ({
   return (
     <Box
       sx={{ position: 'relative', height: '100%', width: '100%' }}
-      onContextMenu={e => {
-        e.preventDefault();
-        onMenuOpen(e, null);
-      }}
+      onContextMenu={handleEmptyContextMenu}
       onDragEnter={e => {
         e.preventDefault();
         e.stopPropagation();
@@ -594,20 +609,24 @@ const FileExplorerContent = ({
                   {t('folder.title')}
                 </Typography>
                 <Grid container spacing={2}>
-                  <AnimatePresence>
+                  <AnimatePresence mode="wait">
                     {fileExplorer.folders.map((folder, index) => (
                       <Grid item xs={12} sm={6} md={4} lg={3} key={folder.id}>
                         <MotionBox
-                          initial={{ opacity: 0, scale: 0.9 }}
+                          initial={false}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          transition={{ duration: 0.2 }}
                         >
                           <FolderCard
                             folder={folder}
                             onOpen={onFolderOpen}
                             onDelete={onFolderDelete}
                             onShare={folder => onShare(folder, 'folder')}
+                            onMove={onMove}
+                            onToggleStar={onToggleStar}
+                            onRestore={onRestore}
+                            onMenuOpen={onMenuOpen}
                           />
                         </MotionBox>
                       </Grid>
@@ -628,14 +647,14 @@ const FileExplorerContent = ({
                   {t('folder.files_title')}
                 </Typography>
                 <Grid container spacing={2}>
-                  <AnimatePresence>
+                  <AnimatePresence mode="wait">
                     {fileExplorer.files.map((file, index) => (
                       <Grid item xs={12} sm={6} md={4} lg={3} key={file.id}>
                         <MotionBox
-                          initial={{ opacity: 0, scale: 0.9 }}
+                          initial={false}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          transition={{ duration: 0.2 }}
                         >
                           <FileCard
                             file={file}
@@ -646,6 +665,10 @@ const FileExplorerContent = ({
                             onPreview={onPreview}
                             onEdit={onEdit}
                             onInfo={handleFileInfo}
+                            onMove={onMove}
+                            onToggleStar={onToggleStar}
+                            onRestore={onRestore}
+                            onMenuOpen={onMenuOpen}
                           />
                         </MotionBox>
                       </Grid>
@@ -750,6 +773,9 @@ const FileExplorerContent = ({
                       onFolderOpen={onFolderOpen}
                       onShare={onShare}
                       onFolderDelete={onFolderDelete}
+                      onMove={onMove}
+                      onToggleStar={onToggleStar}
+                      onRestore={onRestore}
                     />
                   ))}
 
@@ -765,6 +791,9 @@ const FileExplorerContent = ({
                       handleAskNimbus={handleAskNimbus}
                       onShare={onShare}
                       onFileDelete={onFileDelete}
+                      onMove={onMove}
+                      onToggleStar={onToggleStar}
+                      onRestore={onRestore}
                     />
                   ))}
                 </TableBody>

@@ -79,8 +79,42 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
             }))
           );
         }
+      } else if (selectedMenu === 'recent') {
+        const response = await fileApi.getRecent();
+        if (response && response.files) {
+          setFolders([]);
+          setFiles(response.files);
+        } else {
+          setFolders([]);
+          setFiles([]);
+        }
+      } else if (selectedMenu === 'starred') {
+        const [filesRes, foldersRes] = await Promise.all([
+          fileApi.getStarred(),
+          folderApi.getStarred()
+        ]);
+
+        setFiles(filesRes?.files || []);
+        setFolders(foldersRes?.folders || []);
+      } else if (selectedMenu === 'trash') {
+        const currentNav = getCurrentNavState();
+        const { currentFolder } = currentNav;
+
+        if (currentFolder) {
+          const response = await folderApi.getFolderContents(currentFolder.id);
+
+          setFiles(response.files || []);
+          setFolders(response.subfolders || []);
+        } else {
+          const [filesRes, foldersRes] = await Promise.all([
+            fileApi.getTrash(),
+            folderApi.getTrash()
+          ]);
+
+          setFiles(filesRes?.files || []);
+          setFolders(foldersRes?.folders || []);
+        }
       } else {
-        // Load home folder contents
         if (currentFolder) {
           const response = await folderApi.getFolderContents(currentFolder.id);
           if (!response) {
@@ -123,7 +157,7 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
 
         if (response && response.folder) {
           window.toast?.success('Klasör başarıyla oluşturuldu');
-          loadContents(); // Refresh the list
+          loadContents();
           return response.folder;
         }
       } catch (error) {
@@ -136,11 +170,11 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
   );
 
   const deleteFolder = useCallback(
-    async folderId => {
+    async (folderId, permanent = false) => {
       try {
-        await folderApi.deleteFolder(folderId);
-        window.toast?.success('Klasör başarıyla silindi');
-        loadContents(); // Refresh the list
+        await folderApi.deleteFolder(folderId, permanent);
+        window.toast?.success(permanent ? 'Klasör kalıcı olarak silindi' : 'Klasör çöp kutusuna taşındı');
+        loadContents();
       } catch (error) {
         console.error('Klasör silme hatası:', error);
         window.toast?.error('Klasör silinirken hata oluştu');
@@ -150,10 +184,10 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
   );
 
   const deleteFile = useCallback(
-    async fileId => {
+    async (fileId, permanent = false) => {
       try {
-        await fileApi.deleteFile(fileId);
-        window.toast?.success('Dosya başarıyla silindi');
+        await fileApi.deleteFile(fileId, permanent);
+        window.toast?.success(permanent ? 'Dosya kalıcı olarak silindi' : 'Dosya çöp kutusuna taşındı');
         loadContents(); // Refresh the list
       } catch (error) {
         console.error('Dosya silme hatası:', error);
@@ -165,9 +199,6 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
 
   const downloadFile = useCallback(async file => {
     try {
-      // Log the file object to debug
-      console.log('Downloading file:', file);
-
       if (!file.id) {
         throw new Error('File ID not available');
       }
@@ -202,6 +233,71 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
     }
   }, []);
 
+  const toggleStar = useCallback(
+    async (item, type) => {
+      try {
+        if (type === 'folder') {
+          await folderApi.toggleStar(item.id);
+        } else {
+          await fileApi.toggleStar(item.id);
+        }
+        loadContents();
+      } catch (error) {
+        console.error('Yıldızlama hatası:', error);
+        window.toast?.error('İşlem başarısız');
+      }
+    },
+    [loadContents]
+  );
+
+  const restoreItem = useCallback(
+    async (item, type) => {
+      try {
+        if (type === 'folder') {
+          await folderApi.restoreFolder(item.id);
+        } else {
+          await fileApi.restoreFile(item.id);
+        }
+        window.toast?.success('Öğe geri yüklendi');
+        loadContents();
+      } catch (error) {
+        console.error('Geri yükleme hatası:', error);
+        window.toast?.error('Geri yükleme başarısız');
+      }
+    },
+    [loadContents]
+  );
+
+  const permanentDelete = useCallback(
+    async (item, type) => {
+      if (type === 'folder') {
+        await deleteFolder(item.id, true);
+      } else {
+        await deleteFile(item.id, true);
+      }
+    },
+    [deleteFile, deleteFolder]
+  );
+
+  const moveItem = useCallback(
+    async (item, targetFolderId, type) => {
+      try {
+        if (type === 'folder') {
+          await folderApi.moveFolder(item.id, targetFolderId);
+        } else {
+          await fileApi.moveFile(item.id, targetFolderId);
+        }
+        window.toast?.success('Öğe taşındı');
+        loadContents();
+      } catch (error) {
+        console.error('Taşıma hatası:', error);
+        window.toast?.error('Taşıma işlemi başarısız: ' + (error.response?.data?.error || error.message));
+        throw error;
+      }
+    },
+    [loadContents]
+  );
+
   return {
     folders,
     files,
@@ -212,5 +308,9 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
     deleteFolder,
     deleteFile,
     downloadFile,
+    toggleStar,
+    restoreItem,
+    permanentDelete,
+    moveItem,
   };
 };

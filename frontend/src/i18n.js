@@ -113,6 +113,10 @@ const resources = {
       forbidden: 'Yasak',
       language_changed: 'Dil {{lng}} olarak değiştirildi',
 
+      'starred.add': 'Yıldızla',
+      'starred.remove': 'Yıldızlamayı Kaldır',
+      'restore': 'Geri Yükle',
+
       // Landing Page
       'landing.nav_features': 'Özellikler',
       'landing.nav_about': 'Hakkında',
@@ -376,6 +380,10 @@ const resources = {
       not_found: 'Not found',
       forbidden: 'Forbidden',
       language_changed: 'Language changed to {{lng}}',
+
+      'starred.add': 'Add Star',
+      'starred.remove': 'Remove Star',
+      'restore': 'Restore',
 
       // Landing Page
       'landing.nav_features': 'Features',

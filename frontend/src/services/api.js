@@ -139,9 +139,34 @@ export const fileApi = {
     return api.get('/files/');
   },
 
-  // Delete file
-  deleteFile: fileId => {
-    return api.delete(`/files/${fileId}`);
+  // Delete file (soft or hard)
+  deleteFile: (fileId, permanent = false) => {
+    return api.delete(`/files/${fileId}${permanent ? '?permanent=true' : ''}`);
+  },
+
+  // Get recent files
+  getRecent: () => {
+    return api.get('/files/recent');
+  },
+
+  // Get starred files
+  getStarred: () => {
+    return api.get('/files/starred');
+  },
+
+  // Get trash files
+  getTrash: () => {
+    return api.get('/files/trash');
+  },
+
+  // Toggle star
+  toggleStar: fileId => {
+    return api.post(`/files/${fileId}/star`);
+  },
+
+  // Restore file
+  restoreFile: fileId => {
+    return api.post(`/files/${fileId}/restore`);
   },
 
   // Move file to folder
@@ -239,18 +264,21 @@ export const fileApi = {
 // Folder specific methods
 export const folderApi = {
   // Create folder
-  createFolder: folderData => {
-    return api.post('/folders/', folderData);
+  createFolder: async folderData => {
+    const response = await api.post('/folders/', folderData);
+    return response.data;
   },
 
   // Get user folders
-  getUserFolders: () => {
-    return api.get('/folders/');
+  getUserFolders: async () => {
+    const response = await api.get('/folders/');
+    return response.data;
   },
 
   // Get root contents (folders + root files)
-  getRootContents: () => {
-    return api.get('/folders/root');
+  getRootContents: async () => {
+    const response = await api.get('/folders/root');
+    return response;
   },
 
   // Get storage usage
@@ -259,8 +287,10 @@ export const folderApi = {
   },
 
   // Get folder contents
-  getFolderContents: folderId => {
-    return api.get(`/folders/${folderId}`);
+  getFolderContents: async folderId => {
+    if (!folderId) return { files: [], subfolders: [], breadcrumbs: [] };
+    const response = await api.get(`/folders/${folderId}`);
+    return response;
   },
 
   // Update folder
@@ -268,9 +298,37 @@ export const folderApi = {
     return api.put(`/folders/${folderId}`, updates);
   },
 
-  // Delete folder
-  deleteFolder: folderId => {
-    return api.delete(`/folders/${folderId}`);
+  // Delete folder (soft or hard)
+  deleteFolder: async (folderId, permanent = false) => {
+    const response = await api.delete(`/folders/${folderId}${permanent ? '?permanent=true' : ''}`);
+    return response.data;
+  },
+
+  // Get starred folders
+  getStarred: () => {
+    return api.get('/folders/starred');
+  },
+
+  // Get trash folders
+  getTrash: () => {
+    return api.get('/folders/trash');
+  },
+
+  // Toggle star
+  toggleStar: folderId => {
+    return api.post(`/folders/${folderId}/star`);
+  },
+
+  // Restore folder
+  restoreFolder: async folderId => {
+    const response = await api.post(`/folders/${folderId}/restore`);
+    return response.data;
+  },
+
+  // Move folder
+  moveFolder: async (folderID, targetFolderID) => {
+    const response = await api.post(`/folders/${folderID}/move`, { folder_id: targetFolderID });
+    return response.data;
   },
 };
 

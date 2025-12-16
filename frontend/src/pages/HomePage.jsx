@@ -8,6 +8,7 @@ import FileUpload from '../components/FileUpload';
 const HomePage = () => {
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [fileUploadOpen, setFileUploadOpen] = useState(false);
+  const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'folder' | 'both'
   const [selectedMenu, setSelectedMenu] = useState('home');
   const fileExplorerRef = useRef();
 
@@ -16,6 +17,7 @@ const HomePage = () => {
   };
 
   const handleFileUpload = () => {
+    setUploadMode('file');
     setFileUploadOpen(true);
   };
 
@@ -83,6 +85,7 @@ const HomePage = () => {
         onUploadSuccess={() => {
           setFileUploadOpen(false);
         }}
+        mode={uploadMode}
       />
     </Box>
   );

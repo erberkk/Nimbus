@@ -27,6 +27,7 @@ const FileExplorerDialogs = ({
       <FileUpload
         open={dialogs.fileUploadOpen}
         onClose={dialogs.closeFileUpload}
+        mode={dialogs.fileUploadMode}
         onUploadSuccess={() => {
           dialogs.closeFileUpload();
           uiState.triggerRefresh();

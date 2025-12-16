@@ -10,6 +10,8 @@ import FileExplorerHeader from './FileExplorerHeader';
 import FileExplorerContent from './FileExplorerContent';
 import FileExplorerContextMenu from './FileExplorerContextMenu';
 import FileExplorerDialogs from './FileExplorerDialogs';
+import MoveDialog from './MoveDialog';
+import React, { useState } from 'react';
 
 const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
   const { t } = useTranslation();
@@ -20,6 +22,9 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
   const fileExplorer = useFileExplorer(selectedMenu, navigation.getCurrentNavState);
   const dialogs = useDialogs();
   const uiState = useUIState();
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [itemToMove, setItemToMove] = useState(null);
+  const [itemToMoveType, setItemToMoveType] = useState('file');
 
   useImperativeHandle(ref, () => ({
     handleCreateFolder: fileExplorer.createFolder,
@@ -27,16 +32,17 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
 
   useEffect(() => {
     fileExplorer.loadContents();
-  }, [fileExplorer.loadContents, uiState.refreshTrigger]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMenu, uiState.refreshTrigger]);
+
+  useEffect(() => {
+    fileExplorer.loadContents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation.navigationState[selectedMenu]]);
 
   const handleFolderOpen = folder => {
-    // For shared folders, mark them as shared for proper navigation
     const updatedFolder = folder.isShared ? { ...folder, isShared: true } : folder;
     navigation.handleFolderOpen(updatedFolder);
-  };
-
-  const handleBackToRoot = () => {
-    navigation.handleBackToRoot();
   };
 
   const handleBreadcrumbClick = index => {
@@ -81,6 +87,17 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
     dialogs.openShareDialog(resource, type);
   };
 
+
+  const handleOpenMoveDialog = (item, type) => {
+    setItemToMove(item);
+    setItemToMoveType(type);
+    setMoveDialogOpen(true);
+  };
+
+  const handleMoveItem = async (item, targetFolderId, type) => {
+    await fileExplorer.moveItem(item, targetFolderId, type);
+  };
+
   return (
     <Box sx={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <FileExplorerHeader
@@ -109,6 +126,9 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         onUploadSuccess={handleUploadSuccess}
         onPreview={dialogs.openPreviewDialog}
         onEdit={dialogs.openEditDialog}
+        onMove={handleOpenMoveDialog}
+        onToggleStar={fileExplorer.toggleStar}
+        onRestore={fileExplorer.restoreItem}
       />
 
       <FileExplorerContextMenu
@@ -120,6 +140,9 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         onDeleteFolder={handleDeleteFolder}
         onCreateFolder={dialogs.openCreateFolder}
         onFileUpload={dialogs.openFileUpload}
+        onMove={handleOpenMoveDialog}
+        onToggleStar={fileExplorer.toggleStar}
+        onRestore={fileExplorer.restoreItem}
       />
 
       <FileExplorerDialogs
@@ -129,6 +152,14 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         user={user}
         onCreateFolder={handleCreateFolder}
         onDownloadFile={handleDownloadFile}
+      />
+
+      <MoveDialog
+        open={moveDialogOpen}
+        onClose={() => setMoveDialogOpen(false)}
+        onMove={handleMoveItem}
+        item={itemToMove}
+        itemType={itemToMoveType}
       />
     </Box>
   );

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -24,7 +24,7 @@ import { formatFileSize } from '../utils/fileUtils';
 
 const MotionBox = motion.create(Box);
 
-const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId }) => {
+const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'both' }) => {
   const { t } = useTranslation();
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -32,8 +32,16 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [isFolderUpload, setIsFolderUpload] = useState(false);
+  const [isFolderUpload, setIsFolderUpload] = useState(mode === 'folder');
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (mode === 'file') {
+      setIsFolderUpload(false);
+    } else if (mode === 'folder') {
+      setIsFolderUpload(true);
+    }
+  }, [mode]);
 
   const handleDrag = e => {
     e.preventDefault();
@@ -88,7 +96,7 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
       await fileApi.createFile({
         filename: file.name,
         size: file.size,
-        content_type: file.type,
+        content_type: file.type || 'application/octet-stream', // Fallback to binary if type is empty
         minio_path: minio_path,
         folder_id: currentFolderId || null,
       });
@@ -176,40 +184,44 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
 
   const uploadFile = async file => {
     // Aynı upload logic ama tek dosya için
-    return new Promise(async (resolve, reject) => {
-      try {
-        // Presigned URL al
-        const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type);
-        const { presigned_url } = presignedResponse;
+    return new Promise((resolve, reject) => {
+      const performUpload = async () => {
+        try {
+          // Presigned URL al
+          const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type);
+          const { presigned_url } = presignedResponse;
 
-        // Dosyayı yükle
-        const xhr = new XMLHttpRequest();
-        xhr.upload.addEventListener('progress', e => {
-          if (e.lengthComputable) {
-            // Bu dosyadaki progress'ı hesapla
-            const fileProgress = (e.loaded / e.total) * (100 / files.length);
-            setProgress(prev => prev + fileProgress);
-          }
-        });
+          // Dosyayı yükle
+          const xhr = new XMLHttpRequest();
+          xhr.upload.addEventListener('progress', e => {
+            if (e.lengthComputable) {
+              // Bu dosyadaki progress'ı hesapla
+              const fileProgress = e.loaded / e.total;
+              setProgress(prev => Math.min(prev + fileProgress * 10, 100));
+            }
+          });
 
-        xhr.addEventListener('load', () => {
-          if (xhr.status === 200) {
-            resolve();
-          } else {
-            reject(new Error(`Upload failed: ${xhr.statusText}`));
-          }
-        });
+          xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+              resolve();
+            } else {
+              reject(new Error(`Upload failed: ${xhr.statusText}`));
+            }
+          });
 
-        xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload'));
-        });
+          xhr.addEventListener('error', () => {
+            reject(new Error('Network error during upload'));
+          });
 
-        xhr.open('PUT', presigned_url);
-        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-        xhr.send(file);
-      } catch (error) {
-        reject(error);
-      }
+          xhr.open('PUT', presigned_url);
+          xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+          xhr.send(file);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      performUpload();
     });
   };
 
@@ -234,36 +246,88 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CloudUploadIcon sx={{ color: 'primary.main' }} />
-          <Typography variant="h6">
-            {isFolderUpload ? t('upload.title_folder') : t('upload.title_file')}
-          </Typography>
-        </Box>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{
+        sx: {
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(102, 126, 234, 0.2)',
+          boxShadow: '0 12px 48px 0 rgba(31, 38, 135, 0.25)',
+          borderRadius: 3,
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          fontWeight: 600,
+          py: 2,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+        }}
+      >
+        <CloudUploadIcon />
+        {isFolderUpload ? t('upload.title_folder') : t('upload.title_file')}
       </DialogTitle>
 
-      <DialogContent>
-        {/* Upload Mode Toggle */}
-        <Box sx={{ mb: 3, display: 'flex', gap: 1 }}>
-          <Button
-            variant={!isFolderUpload ? 'contained' : 'outlined'}
-            size="small"
-            onClick={() => setIsFolderUpload(false)}
-            sx={{ flex: 1 }}
+      <DialogContent sx={{ pt: 3 }}>
+        {/* Upload Mode Toggle - Only show if mode is 'both' */}
+        {mode === 'both' && (
+          <Box
+            sx={{
+              mb: 3,
+              display: 'flex',
+              gap: 1,
+              p: 1,
+              borderRadius: 2,
+              background: 'rgba(102, 126, 234, 0.05)',
+              border: '1px solid rgba(102, 126, 234, 0.1)',
+            }}
           >
-            {t('upload.mode_single')}
-          </Button>
-          <Button
-            variant={isFolderUpload ? 'contained' : 'outlined'}
-            size="small"
-            onClick={() => setIsFolderUpload(true)}
-            sx={{ flex: 1 }}
-          >
-            {t('upload.mode_folder')}
-          </Button>
-        </Box>
+            <Button
+              variant={!isFolderUpload ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setIsFolderUpload(false)}
+              sx={{
+                flex: 1,
+                ...(!isFolderUpload && {
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #5568d3 0%, #653a8b 100%)',
+                  },
+                }),
+                transition: 'all 0.3s ease',
+              }}
+            >
+              {t('upload.mode_single')}
+            </Button>
+            <Button
+              variant={isFolderUpload ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setIsFolderUpload(true)}
+              sx={{
+                flex: 1,
+                ...(isFolderUpload && {
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #5568d3 0%, #653a8b 100%)',
+                  },
+                }),
+                transition: 'all 0.3s ease',
+              }}
+            >
+              {t('upload.mode_folder')}
+            </Button>
+          </Box>
+        )}
 
         <input
           ref={fileInputRef}
@@ -324,14 +388,17 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
           whileTap={{ scale: 0.98 }}
           sx={{
             border: '2px dashed',
-            borderColor: dragActive ? 'primary.main' : 'grey.300',
-            backgroundColor: dragActive ? 'primary.50' : 'background.paper',
+            borderColor: dragActive ? '#667eea' : 'rgba(102, 126, 234, 0.3)',
+            background: dragActive
+              ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)'
+              : 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)',
             cursor: uploading ? 'not-allowed' : 'pointer',
-            transition: 'all 0.3s ease',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             opacity: uploading ? 0.7 : 1,
-            borderRadius: 2,
+            borderRadius: 3,
             p: 4,
             textAlign: 'center',
+            boxShadow: dragActive ? '0 8px 24px rgba(102, 126, 234, 0.15)' : 'none',
           }}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -409,8 +476,20 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
         </MotionBox>
       </DialogContent>
 
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} variant="outlined">
+      <DialogActions sx={{ px: 3, pb: 3, gap: 1.5 }}>
+        <Button
+          onClick={onClose}
+          variant="outlined"
+          sx={{
+            borderColor: 'rgba(102, 126, 234, 0.3)',
+            color: 'text.secondary',
+            '&:hover': {
+              borderColor: 'rgba(102, 126, 234, 0.5)',
+              backgroundColor: 'rgba(102, 126, 234, 0.05)',
+            },
+            transition: 'all 0.3s ease',
+          }}
+        >
           İptal
         </Button>
         {uploadedFile && (
@@ -423,6 +502,15 @@ const FileUpload = ({ open, onClose, onUploadSuccess, userId, currentFolderId })
             variant="contained"
             sx={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              fontWeight: 600,
+              px: 3,
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5568d3 0%, #653a8b 100%)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 24px rgba(102, 126, 234, 0.4)',
+              },
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
             Tamam

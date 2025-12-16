@@ -14,6 +14,7 @@ export const useDialogs = () => {
   const [previewFile, setPreviewFile] = useState(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editFile, setEditFile] = useState(null);
+  const [fileUploadMode, setFileUploadMode] = useState('both');
 
   // Dialog control functions
   const openCreateFolder = useCallback(() => {
@@ -24,7 +25,8 @@ export const useDialogs = () => {
     setCreateFolderOpen(false);
   }, []);
 
-  const openFileUpload = useCallback(() => {
+  const openFileUpload = useCallback((mode = 'both') => {
+    setFileUploadMode(mode);
     setFileUploadOpen(true);
   }, []);
 
@@ -68,6 +70,7 @@ export const useDialogs = () => {
     // Dialog states
     createFolderOpen,
     fileUploadOpen,
+    fileUploadMode,
     shareDialogOpen,
     shareResource,
     shareResourceType,

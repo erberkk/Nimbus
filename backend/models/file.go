@@ -27,6 +27,8 @@ type File struct {
 	MinioPath        string               `json:"minio_path" bson:"minio_path"`
 	PublicLink       string               `json:"public_link" bson:"public_link"`
 	AccessList       []AccessEntry        `json:"access_list" bson:"access_list"`
+	IsStarred        bool                 `json:"is_starred" bson:"is_starred"`
+	DeletedAt        *time.Time           `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
 	ProcessingStatus string               `json:"processing_status" bson:"processing_status"` // none, pending, processing, completed, failed
 	ProcessingError  string               `json:"processing_error,omitempty" bson:"processing_error,omitempty"`
 	ProcessedAt      *time.Time           `json:"processed_at,omitempty" bson:"processed_at,omitempty"`
@@ -46,10 +48,12 @@ type FileResponse struct {
 	AccessList       []AccessEntry        `json:"access_list"`
 	ParentID         *primitive.ObjectID  `json:"parent_id,omitempty"`
 	Ancestors        []primitive.ObjectID `json:"ancestors"`
+	IsStarred        bool                 `json:"is_starred"`
 	ProcessingStatus string               `json:"processing_status"`
 	ProcessingError  string               `json:"processing_error,omitempty"`
 	ProcessedAt      *time.Time           `json:"processed_at,omitempty"`
 	ChunkCount       int                  `json:"chunk_count"`
+	DeletedAt        *time.Time           `json:"deleted_at,omitempty"`
 	CreatedAt        time.Time            `json:"created_at"`
 	UpdatedAt        time.Time            `json:"updated_at"`
 }
@@ -57,7 +61,7 @@ type FileResponse struct {
 type CreateFileRequest struct {
 	Filename    string  `json:"filename" validate:"required"`
 	Size        int64   `json:"size" validate:"required"`
-	ContentType string  `json:"content_type" validate:"required"`
+	ContentType string  `json:"content_type"` // Optional - defaults to application/octet-stream if not provided
 	MinioPath   string  `json:"minio_path" validate:"required"`
 	FolderID    *string `json:"folder_id"`
 }

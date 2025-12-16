@@ -37,10 +37,15 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 		files.Get("/upload-url", handlers.GetUploadPresignedURL(cfg))
 		files.Post("/", handlers.CreateFile(cfg))
 		files.Get("/", handlers.ListUserFiles(cfg))
+		files.Get("/recent", handlers.GetRecentFiles(cfg))
+		files.Get("/starred", handlers.GetStarredFiles(cfg))
+		files.Get("/trash", handlers.GetTrashFiles(cfg))
+		files.Post("/:id/star", handlers.ToggleFileStar(cfg))
+		files.Post("/:id/restore", handlers.RestoreFile(cfg))
+		files.Post("/:id/move", handlers.MoveFile(cfg))
 		files.Delete("/:id", handlers.DeleteFile(cfg))
 		files.Get("/download-url", handlers.GetDownloadPresignedURL(cfg))
 		files.Get("/preview-url", handlers.GetPreviewPresignedURL(cfg)) // Supports ?file_id=xxx or ?filename=xxx
-		files.Post("/:id/move", handlers.MoveFile(cfg))
 		files.Get("/onlyoffice-config", handlers.GetOnlyOfficeConfig(cfg)) // OnlyOffice editor config
 		files.Get("/content", handlers.GetFileContent(cfg))                // Get file content as text (for code files)
 		files.Put("/:id/content", handlers.UpdateFileContent(cfg))         // Update file content (for code files)
@@ -68,6 +73,11 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	{
 		folders.Post("/", handlers.CreateFolder(cfg))
 		folders.Get("/", handlers.GetUserFolders(cfg))
+		folders.Get("/starred", handlers.GetStarredFolders(cfg))
+		folders.Get("/trash", handlers.GetTrashFolders(cfg))
+		folders.Post("/:id/star", handlers.ToggleFolderStar(cfg))
+		folders.Post("/:id/restore", handlers.RestoreFolder(cfg))
+		folders.Post("/:id/move", handlers.MoveFolder(cfg))
 		folders.Get("/root", handlers.GetRootContents(cfg))
 		folders.Get("/storage", handlers.GetStorageUsage(cfg))
 		folders.Get("/:id", handlers.GetFolderContents(cfg))

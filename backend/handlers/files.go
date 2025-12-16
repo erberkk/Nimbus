@@ -84,6 +84,11 @@ func CreateFile(cfg *config.Config) fiber.Handler {
 			})
 		}
 
+		// Content-Type fallback
+		if req.ContentType == "" {
+			req.ContentType = "application/octet-stream"
+		}
+
 		// Dosya kaydı oluştur
 		file, err := services.FileServiceInstance.CreateFileRecord(
 			userID,
@@ -389,6 +394,7 @@ func ListUserFiles(cfg *config.Config) fiber.Handler {
 				AccessList:       file.AccessList,
 				ParentID:         file.ParentID,
 				Ancestors:        file.Ancestors,
+				IsStarred:        file.IsStarred,
 				ProcessingStatus: file.ProcessingStatus,
 				ProcessingError:  file.ProcessingError,
 				ProcessedAt:      file.ProcessedAt,
@@ -405,7 +411,7 @@ func ListUserFiles(cfg *config.Config) fiber.Handler {
 	}
 }
 
-// DeleteFile - Dosyayı MongoDB ve MinIO'dan sil
+// DeleteFile - Dosyayı sil (Soft veya Hard)
 func DeleteFile(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		userID, err := helpers.GetCurrentUserID(c)
@@ -422,6 +428,8 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 			})
 		}
 
+		isPermanent := c.Query("permanent") == "true"
+
 		// Dosya kaydını getir
 		file, err := services.FileServiceInstance.GetFileByID(fileID)
 		if err != nil {
@@ -437,40 +445,289 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// MongoDB'den sil
-		if err := services.FileServiceInstance.DeleteFileRecord(fileID); err != nil {
-			log.Printf("Dosya kaydı silme hatası: %v", err)
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Dosya kaydı silinemedi",
+		if isPermanent {
+			// Hard Delete
+			if err := services.FileServiceInstance.DeleteFileRecord(fileID); err != nil {
+				log.Printf("Dosya kaydı silme hatası: %v", err)
+				return c.Status(500).JSON(fiber.Map{
+					"error": "Dosya kaydı silinemedi",
+				})
+			}
+
+			// MinIO'dan sil (opsiyonel - hata olsa bile kayıt silindi)
+			if err := services.MinioService.DeleteFile(file.MinioPath); err != nil {
+				log.Printf("MinIO'dan dosya silme hatası: %v (kayıt silindi)", err)
+			}
+
+			// Chroma'dan sil (if document was processed)
+			if file.ProcessingStatus == "completed" && services.DocumentProcessorInstance != nil {
+				chromaService := services.NewChromaService(cfg)
+				if err := chromaService.DeleteDocumentChunks(fileID); err != nil {
+					log.Printf("Chroma'dan chunks silme hatası: %v (kayıt silindi)", err)
+				}
+			}
+
+			// Delete conversation history
+			if err := services.ConversationServiceInstance.DeleteConversationsByFileID(fileID); err != nil {
+				log.Printf("Sohbet geçmişi silme hatası: %v (kayıt silindi)", err)
+			}
+
+			return c.JSON(fiber.Map{
+				"message": "Dosya kalıcı olarak silindi",
+			})
+		} else {
+			// Soft Delete
+			if err := services.FileServiceInstance.SoftDeleteFile(fileID); err != nil {
+				log.Printf("Dosya soft delete hatası: %v", err)
+				return c.Status(500).JSON(fiber.Map{
+					"error": "Dosya silinemedi",
+				})
+			}
+
+			return c.JSON(fiber.Map{
+				"message": "Dosya çöp kutusuna taşındı",
+			})
+		}
+	}
+}
+
+// GetRecentFiles - Son kullanılan dosyaları getir
+func GetRecentFiles(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
 			})
 		}
 
-		// MinIO'dan sil (opsiyonel - hata olsa bile kayıt silindi)
-		if err := services.MinioService.DeleteFile(file.MinioPath); err != nil {
-			log.Printf("MinIO'dan dosya silme hatası: %v (kayıt silindi)", err)
-		}
-
-		// Chroma'dan sil (if document was processed)
-		if file.ProcessingStatus == "completed" && services.DocumentProcessorInstance != nil {
-			chromaService := services.NewChromaService(cfg)
-			if err := chromaService.DeleteDocumentChunks(fileID); err != nil {
-				log.Printf("Chroma'dan chunks silme hatası: %v (kayıt silindi)", err)
-			} else {
-				log.Printf("Chroma'dan %s dosyası için chunks silindi", fileID)
-			}
-		}
-
-		// Delete conversation history
-		if err := services.ConversationServiceInstance.DeleteConversationsByFileID(fileID); err != nil {
-			log.Printf("Sohbet geçmişi silme hatası: %v (kayıt silindi)", err)
-		} else {
-			log.Printf("%s dosyası için sohbet geçmişi silindi", fileID)
+		files, err := services.FileServiceInstance.GetRecentFiles(userID, 20)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Dosyalar alınamadı",
+			})
 		}
 
 		return c.JSON(fiber.Map{
-			"message": "Dosya başarıyla silindi",
+			"files": formatFileResponse(files),
 		})
 	}
+}
+
+// GetStarredFiles - Yıldızlı dosyaları getir
+func GetStarredFiles(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		files, err := services.FileServiceInstance.GetStarredFiles(userID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Dosyalar alınamadı",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"files": formatFileResponse(files),
+		})
+	}
+}
+
+// GetTrashFiles - Çöp kutusundaki dosyaları getir
+func GetTrashFiles(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		files, err := services.FileServiceInstance.GetTrashFiles(userID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Dosyalar alınamadı",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"files": formatFileResponse(files),
+		})
+	}
+}
+
+// ToggleFileStar - Dosya yıldız durumunu değiştir
+func ToggleFileStar(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		fileID := c.Params("id")
+		if fileID == "" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "file ID parametresi gerekli",
+			})
+		}
+
+		// Erişim kontrolü
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Dosya bulunamadı",
+			})
+		}
+
+		// Sadece dosya sahibi veya yazma yetkisi olanlar yıldızlayabilir mi?
+		// Yıldızlama kişisel bir özelliktir. Shared dosyaları da kendim için yıldızlayabilmeliyim.
+		// Ancak şu anki yapıda IsStarred dosya modelinde, yani global. Bu bir sorun olabilir.
+		// Plan: IsStarred field on File model.
+		// Bu durumda shared dosya yıldızlandığında herkes için yıldızlanmış olur.
+		// Şimdilik sadece owner'ın yıldızlamasına izin verelim veya yazma yetkisine.
+		// İdeal olan AccessEntry'de IsStarred tutmak veya ayrı bir UserFavorites tablosu.
+		// Ama modele ekledik, o yüzden model üzerinden gidelim.
+		// Şimdilik sadece owner değiştirebilsin.
+
+		if file.UserID != userID {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Sadece dosya sahibi yıldızlayabilir",
+			})
+		}
+
+		newStatus, err := services.FileServiceInstance.ToggleFileStar(fileID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "İşlem başarısız",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"is_starred": newStatus,
+		})
+	}
+}
+
+// RestoreFile - Dosyayı geri yükle
+func RestoreFile(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		fileID := c.Params("id")
+		if fileID == "" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "file ID parametresi gerekli",
+			})
+		}
+
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Dosya bulunamadı",
+			})
+		}
+
+		if file.UserID != userID {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Yetkiniz yok",
+			})
+		}
+
+		if err := services.FileServiceInstance.RestoreFile(fileID); err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Geri yükleme başarısız",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"message": "Dosya geri yüklendi",
+		})
+	}
+}
+
+// MoveFile - Dosya taşı
+func MoveFile(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		fileID := c.Params("id")
+		
+		var req struct {
+			FolderID *string `json:"folder_id"`
+		}
+
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Geçersiz istek",
+			})
+		}
+
+		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Dosya bulunamadı",
+			})
+		}
+
+		if file.UserID != userID {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Yetkiniz yok",
+			})
+		}
+
+		if err := services.FileServiceInstance.MoveFile(fileID, req.FolderID); err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"message": "Dosya taşındı",
+		})
+	}
+}
+
+func formatFileResponse(files []models.File) []models.FileResponse {
+	fileList := make([]models.FileResponse, 0, len(files))
+	for _, file := range files {
+		fileList = append(fileList, models.FileResponse{
+			ID:               file.ID.Hex(),
+			UserID:           file.UserID,
+			Filename:         file.Filename,
+			Size:             file.Size,
+			ContentType:      file.ContentType,
+			MinioPath:        file.MinioPath,
+			PublicLink:       file.PublicLink,
+			AccessList:       file.AccessList,
+			ParentID:         file.ParentID,
+			Ancestors:        file.Ancestors,
+			IsStarred:        file.IsStarred,
+			ProcessingStatus: file.ProcessingStatus,
+			ProcessingError:  file.ProcessingError,
+			ProcessedAt:      file.ProcessedAt,
+			ChunkCount:       file.ChunkCount,
+			DeletedAt:        file.DeletedAt,
+			CreatedAt:        file.CreatedAt,
+			UpdatedAt:        file.UpdatedAt,
+		})
+	}
+	return fileList
 }
 
 // OnlyOfficeFileMapping represents mapping from content type to OnlyOffice types

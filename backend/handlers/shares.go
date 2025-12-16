@@ -473,7 +473,6 @@ func UpdateAccessPermission() fiber.Handler {
 			context.Background(),
 			bson.M{
 				"_id":                 resourceOID,
-				"user_id":             userID,
 				"access_list.user_id": req.UserID,
 			},
 			bson.M{
@@ -504,7 +503,6 @@ func UpdateAccessPermission() fiber.Handler {
 				context.Background(),
 				bson.M{
 					"_id":         resourceOID,
-					"user_id":     userID,
 					"access_list": nil,
 				},
 				bson.M{
@@ -515,8 +513,7 @@ func UpdateAccessPermission() fiber.Handler {
 			fileUpdateResult, err = database.FileCollection.UpdateOne(
 				context.Background(),
 				bson.M{
-					"_id":     resourceOID,
-					"user_id": userID,
+					"_id": resourceOID,
 				},
 				bson.M{
 					"$push": bson.M{"access_list": accessEntry},
@@ -537,7 +534,6 @@ func UpdateAccessPermission() fiber.Handler {
 				context.Background(),
 				bson.M{
 					"_id":                 resourceOID,
-					"user_id":             userID,
 					"access_list.user_id": req.UserID,
 				},
 				bson.M{
@@ -561,7 +557,6 @@ func UpdateAccessPermission() fiber.Handler {
 					context.Background(),
 					bson.M{
 						"_id":         resourceOID,
-						"user_id":     userID,
 						"access_list": nil,
 					},
 					bson.M{
@@ -572,8 +567,7 @@ func UpdateAccessPermission() fiber.Handler {
 				updateResult, err = database.FolderCollection.UpdateOne(
 					context.Background(),
 					bson.M{
-						"_id":     resourceOID,
-						"user_id": userID,
+						"_id": resourceOID,
 					},
 					bson.M{
 						"$push": bson.M{"access_list": accessEntry},
@@ -653,7 +647,6 @@ func RemoveUserAccess() fiber.Handler {
 			context.Background(),
 			bson.M{
 				"_id":                 resourceOID,
-				"user_id":             userID,
 				"access_list.user_id": userIDToRemove,
 			},
 			bson.M{
@@ -674,7 +667,6 @@ func RemoveUserAccess() fiber.Handler {
 				context.Background(),
 				bson.M{
 					"_id":                 resourceOID,
-					"user_id":             userID,
 					"access_list.user_id": userIDToRemove,
 				},
 				bson.M{

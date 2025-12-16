@@ -6,8 +6,11 @@ import { useState, useCallback } from 'react';
  */
 export const useNavigation = (selectedMenu = 'home') => {
   const [navigationState, setNavigationState] = useState({
-    shared: { currentFolder: null, folderPath: [] },
     home: { currentFolder: null, folderPath: [] },
+    shared: { currentFolder: null, folderPath: [] },
+    trash: { currentFolder: null, folderPath: [] },
+    recent: { currentFolder: null, folderPath: [] },
+    starred: { currentFolder: null, folderPath: [] },
   });
 
   // Helper functions to get current navigation state
@@ -57,12 +60,10 @@ export const useNavigation = (selectedMenu = 'home') => {
       const currentNav = getCurrentNavState();
 
       if (index === -1) {
-        // Root'a dön
         handleBackToRoot();
-      } else if (index < currentNav.folderPath.length - 1) {
-        // Belirli bir klasöre dön
+      } else if (index >= 0 && index < currentNav.folderPath.length) {
+        const targetFolder = currentNav.folderPath[index];
         const newPath = currentNav.folderPath.slice(0, index + 1);
-        const targetFolder = newPath[newPath.length - 1];
 
         updateNavState({
           currentFolder: targetFolder,

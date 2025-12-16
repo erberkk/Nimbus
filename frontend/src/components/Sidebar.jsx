@@ -118,13 +118,13 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
       }}
     >
       {/* Yeni Button */}
-      <Box sx={{ px: 2, py: 1.5, flexShrink: 0 }}>
+      <Box sx={{ px: 2, py: 1.5, pt: 2.5, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleNewMenuOpen}
           sx={{
-            width: 'auto',
+            width: 'fit-content',
             px: 2,
             height: 36,
             borderRadius: 1.5,
@@ -204,7 +204,7 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
       <Divider sx={{ mx: 2, flexShrink: 0 }} />
 
       <List sx={{ px: 2, py: 1.5, flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        {menuItems.map((item, index) => (
+        {menuItems.map(item => (
           <ListItem key={item.id} disablePadding sx={{ mb: 0.5 }}>
             <MotionBox
               whileHover={{ scale: 1.02 }}
@@ -262,7 +262,19 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
       {/* Storage Section */}
       <Box sx={{ px: 2, py: 1.5, mt: 'auto', mb: 1, flexShrink: 0 }}>
         <Divider sx={{ mb: 1.5, borderColor: 'rgba(255,255,255,0.24)' }} />
-        <Box sx={{ bgcolor: 'white', borderRadius: 2, p: 1.25 }}>
+        <Box sx={{ 
+          background: 'rgba(255, 255, 255, 0.7)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.5)',
+          borderRadius: 2, 
+          p: 1.25,
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            background: 'rgba(255, 255, 255, 0.85)',
+            border: '1px solid rgba(255, 255, 255, 0.6)',
+            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)',
+          }
+        }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
             <CloudQueueIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 1 }} />
             <Typography variant="body2" color="text.secondary" fontWeight={600} fontSize="0.8rem">
@@ -275,7 +287,7 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
             sx={{
               height: 6,
               borderRadius: 4,
-              bgcolor: 'grey.200',
+              bgcolor: 'rgba(0,0,0,0.1)',
               '& .MuiLinearProgress-bar': {
                 borderRadius: 4,
                 backgroundColor: '#FBBF24',

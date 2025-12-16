@@ -1,9 +1,6 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
-  Typography,
-  Button,
   Breadcrumbs,
   Link,
   Alert,
@@ -12,8 +9,6 @@ import {
 } from '@mui/material';
 import HomeIcon from '@mui/icons-material/Home';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
-import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 
@@ -23,32 +18,59 @@ const FileExplorerHeader = ({
   uiState,
   fileExplorer,
   onBreadcrumbClick,
-  onCreateFolder,
-  onFileUpload,
   onViewModeChange,
 }) => {
   const { t } = useTranslation();
+
+  // Get the header title based on selectedMenu
+  const getHeaderTitle = () => {
+    switch (selectedMenu) {
+      case 'shared':
+        return t('header.shared') || 'Shared with me';
+      case 'recent':
+        return t('sidebar.recent') || 'Recent';
+      case 'starred':
+        return t('sidebar.starred') || 'Starred';
+      case 'trash':
+        return t('sidebar.trash') || 'Trash';
+      case 'home':
+      default:
+        return 'My Drive';
+    }
+  };
+
+  const headerTitle = getHeaderTitle();
+
   return (
     <>
       {/* Top Toolbar */}
       <Toolbar
         sx={{
-          px: 0,
-          py: 1.5,
+          px: 2,
+          py: 2,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: 1,
-          borderColor: 'divider',
-          mb: 1,
+          mb: 2,
+          borderRadius: 3,
+          background: 'rgba(255, 255, 255, 0.7)',
+          backdropFilter: 'blur(10px)',
+          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+          border: '1px solid rgba(255, 255, 255, 0.5)',
+          boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)',
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+          },
         }}
       >
         {/* Breadcrumb */}
         <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />}>
-          {selectedMenu === 'shared'
+          {['shared', 'recent', 'starred', 'trash'].includes(selectedMenu)
             ? [
                 <Link
-                  key="shared"
+                  key={selectedMenu}
                   component="button"
                   variant="body1"
                   onClick={() => onBreadcrumbClick(-1)}
@@ -60,18 +82,23 @@ const FileExplorerHeader = ({
                     textDecoration: 'none',
                     cursor: 'pointer',
                     fontSize: '0.95rem',
+                    fontWeight: 500,
+                    transition: 'all 0.3s ease',
+                    padding: '4px 8px',
+                    borderRadius: 1,
                     '&:hover': {
                       color: 'primary.main',
+                      backgroundColor: 'rgba(102, 126, 234, 0.1)',
                     },
                   }}
                 >
                   <HomeIcon fontSize="small" />
-                  {t('header.shared')}
+                  {headerTitle}
                 </Link>,
-                // Shared folder path için breadcrumb oluştur
+                // Folder path için breadcrumb oluştur
                 ...navigation.getCurrentNavState().folderPath.map((folder, index) => (
                   <Link
-                    key={`shared-folder-${index}`}
+                    key={`folder-${index}`}
                     component="button"
                     variant="body1"
                     onClick={() => onBreadcrumbClick(index)}
@@ -117,7 +144,7 @@ const FileExplorerHeader = ({
                   }}
                 >
                   <HomeIcon fontSize="small" />
-                  My Drive
+                  {headerTitle}
                 </Link>,
                 // Path'deki her klasör için breadcrumb oluştur
                 ...navigation.getCurrentNavState().folderPath.map((folder, index) => (
@@ -149,12 +176,28 @@ const FileExplorerHeader = ({
         </Breadcrumbs>
 
         {/* View Mode Toggle */}
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 0.5,
+            alignItems: 'center',
+            background: 'rgba(102, 126, 234, 0.1)',
+            padding: '4px',
+            borderRadius: 2,
+            backdropFilter: 'blur(10px)',
+          }}
+        >
           <IconButton
             size="small"
             onClick={() => onViewModeChange('list')}
             sx={{
-              bgcolor: uiState.viewMode === 'list' ? 'action.selected' : 'transparent',
+              bgcolor: uiState.viewMode === 'list' ? 'rgba(102, 126, 234, 0.2)' : 'transparent',
+              color: uiState.viewMode === 'list' ? 'primary.main' : 'text.secondary',
+              transition: 'all 0.3s ease',
+              borderRadius: 1,
+              '&:hover': {
+                bgcolor: 'rgba(102, 126, 234, 0.15)',
+              },
             }}
           >
             <ViewListIcon />
@@ -163,12 +206,17 @@ const FileExplorerHeader = ({
             size="small"
             onClick={() => onViewModeChange('grid')}
             sx={{
-              bgcolor: uiState.viewMode === 'grid' ? 'action.selected' : 'transparent',
+              bgcolor: uiState.viewMode === 'grid' ? 'rgba(102, 126, 234, 0.2)' : 'transparent',
+              color: uiState.viewMode === 'grid' ? 'primary.main' : 'text.secondary',
+              transition: 'all 0.3s ease',
+              borderRadius: 1,
+              '&:hover': {
+                bgcolor: 'rgba(102, 126, 234, 0.15)',
+              },
             }}
           >
             <ViewModuleIcon />
           </IconButton>
-          <IconButton size="small">{/* More options can be added here */}</IconButton>
         </Box>
       </Toolbar>
 

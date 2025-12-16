@@ -90,6 +90,7 @@ func GetUserFolders(cfg *config.Config) fiber.Handler {
 				Name:      folder.Name,
 				Color:     folder.Color,
 				ItemCount: int(count),
+				IsStarred: folder.IsStarred,
 				CreatedAt: folder.CreatedAt,
 				UpdatedAt: folder.UpdatedAt,
 			})
@@ -135,8 +136,19 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasördeki alt klasörleri getir
-		subFolders, err := services.FolderServiceInstance.GetSubFolders(folderID)
+
+		// Klasördeki alt klasörleri ve dosyaları getir
+		var subFolders []models.Folder
+		var files []models.File
+
+		// Eğer klasör silinmişse (DeletedAt != nil), silinmiş içeriği getir.
+		// Değilse normal içeriği getir.
+		if folder.DeletedAt != nil {
+			subFolders, err = services.FolderServiceInstance.GetTrashedSubFolders(folderID)
+		} else {
+			subFolders, err = services.FolderServiceInstance.GetSubFolders(folderID)
+		}
+
 		if err != nil {
 			log.Printf("Alt klasörleri alma hatası: %v", err)
 			return c.Status(500).JSON(fiber.Map{
@@ -144,8 +156,12 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasördeki dosyaları getir
-		files, err := services.FolderServiceInstance.GetFolderFiles(folderID)
+		if folder.DeletedAt != nil {
+			files, err = services.FolderServiceInstance.GetTrashedFolderFiles(folderID)
+		} else {
+			files, err = services.FolderServiceInstance.GetFolderFiles(folderID)
+		}
+
 		if err != nil {
 			log.Printf("Klasör dosyaları alma hatası: %v", err)
 			return c.Status(500).JSON(fiber.Map{
@@ -168,7 +184,9 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 				Name:      subFolder.Name,
 				Color:     subFolder.Color,
 				ItemCount: int(count),
+				IsStarred: subFolder.IsStarred,
 				FolderID:  subFolder.FolderID,
+				DeletedAt: subFolder.DeletedAt,
 				CreatedAt: subFolder.CreatedAt,
 				UpdatedAt: subFolder.UpdatedAt,
 			})
@@ -188,10 +206,12 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 				AccessList:       file.AccessList,
 				ParentID:         file.ParentID,
 				Ancestors:        file.Ancestors,
+				IsStarred:        file.IsStarred,
 				ProcessingStatus: file.ProcessingStatus,
 				ProcessingError:  file.ProcessingError,
 				ProcessedAt:      file.ProcessedAt,
 				ChunkCount:       file.ChunkCount,
+				DeletedAt:        file.DeletedAt,
 				CreatedAt:        file.CreatedAt,
 				UpdatedAt:        file.UpdatedAt,
 			})
@@ -298,6 +318,8 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 				Name:      folder.Name,
 				Color:     folder.Color,
 				ItemCount: int(count),
+				IsStarred: folder.IsStarred,
+				DeletedAt: folder.DeletedAt,
 				CreatedAt: folder.CreatedAt,
 				UpdatedAt: folder.UpdatedAt,
 			})
@@ -317,10 +339,12 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 				AccessList:       file.AccessList,
 				ParentID:         file.ParentID,
 				Ancestors:        file.Ancestors,
+				IsStarred:        file.IsStarred,
 				ProcessingStatus: file.ProcessingStatus,
 				ProcessingError:  file.ProcessingError,
 				ProcessedAt:      file.ProcessedAt,
 				ChunkCount:       file.ChunkCount,
+				DeletedAt:        file.DeletedAt,
 				CreatedAt:        file.CreatedAt,
 				UpdatedAt:        file.UpdatedAt,
 			})
@@ -400,7 +424,7 @@ func UpdateFolder(cfg *config.Config) fiber.Handler {
 	}
 }
 
-// DeleteFolder - Klasör sil
+// DeleteFolder - Klasör sil (Soft veya Hard)
 func DeleteFolder(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		userID, err := helpers.GetCurrentUserID(c)
@@ -417,6 +441,8 @@ func DeleteFolder(cfg *config.Config) fiber.Handler {
 			})
 		}
 
+		isPermanent := c.Query("permanent") == "true"
+
 		// Klasör owner kontrolü
 		folder, err := services.FolderServiceInstance.GetFolderByID(folderID)
 		if err != nil {
@@ -431,22 +457,34 @@ func DeleteFolder(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasörü sil (boşsa)
-		if err := services.FolderServiceInstance.DeleteFolder(folderID); err != nil {
-			log.Printf("Klasör silme hatası: %v", err)
-			return c.Status(400).JSON(fiber.Map{
-				"error": err.Error(),
+		if isPermanent {
+			// Klasörü sil (boşsa)
+			if err := services.FolderServiceInstance.DeleteFolder(folderID); err != nil {
+				log.Printf("Klasör silme hatası: %v", err)
+				return c.Status(400).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
+			return c.JSON(fiber.Map{
+				"message": "Klasör kalıcı olarak silindi",
+			})
+		} else {
+			// Soft Delete
+			if err := services.FolderServiceInstance.SoftDeleteFolder(folderID); err != nil {
+				log.Printf("Klasör silme hatası: %v", err)
+				return c.Status(400).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
+			return c.JSON(fiber.Map{
+				"message": "Klasör çöp kutusuna taşındı",
 			})
 		}
-
-		return c.JSON(fiber.Map{
-			"message": "Klasör başarıyla silindi",
-		})
 	}
 }
 
-// MoveFile - Dosyayı başka klasöre taşı
-func MoveFile(cfg *config.Config) fiber.Handler {
+// GetStarredFolders - Yıldızlı klasörleri getir
+func GetStarredFolders(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		userID, err := helpers.GetCurrentUserID(c)
 		if err != nil {
@@ -455,62 +493,193 @@ func MoveFile(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		fileID := c.Params("id")
-		if fileID == "" {
-			return c.Status(400).JSON(fiber.Map{
-				"error": "file ID parametresi gerekli",
+		folders, err := services.FolderServiceInstance.GetStarredFolders(userID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Klasörler alınamadı",
 			})
 		}
 
+		return c.JSON(fiber.Map{
+			"folders": formatFolderResponse(folders),
+			"count":   len(folders),
+		})
+	}
+}
+
+// GetTrashFolders - Çöp kutusundaki klasörleri getir
+func GetTrashFolders(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		folders, err := services.FolderServiceInstance.GetTrashFolders(userID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Klasörler alınamadı",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"folders": formatFolderResponse(folders),
+			"count":   len(folders),
+		})
+	}
+}
+
+// ToggleFolderStar - Klasör yıldız durumunu değiştir
+func ToggleFolderStar(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		folderID := c.Params("id")
+		if folderID == "" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "folder ID parametresi gerekli",
+			})
+		}
+
+		folder, err := services.FolderServiceInstance.GetFolderByID(folderID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Klasör bulunamadı",
+			})
+		}
+
+		if folder.UserID != userID {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Yetkiniz yok",
+			})
+		}
+
+		newStatus, err := services.FolderServiceInstance.ToggleFolderStar(folderID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "İşlem başarısız",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"is_starred": newStatus,
+		})
+	}
+}
+
+// RestoreFolder - Klasörü geri yükle
+func RestoreFolder(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		folderID := c.Params("id")
+		if folderID == "" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "folder ID parametresi gerekli",
+			})
+		}
+
+		folder, err := services.FolderServiceInstance.GetFolderByID(folderID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Klasör bulunamadı",
+			})
+		}
+
+		if folder.UserID != userID {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Yetkiniz yok",
+			})
+		}
+
+		if err := services.FolderServiceInstance.RestoreFolder(folderID); err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Geri yükleme başarısız",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"message": "Klasör geri yüklendi",
+		})
+	}
+}
+
+// MoveFolder - Klasör taşı
+func MoveFolder(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		folderID := c.Params("id")
+		
 		var req struct {
 			FolderID *string `json:"folder_id"`
 		}
+
 		if err := c.BodyParser(&req); err != nil {
 			return c.Status(400).JSON(fiber.Map{
-				"error": "Geçersiz istek verisi",
+				"error": "Geçersiz istek",
 			})
 		}
 
-		// Dosya owner kontrolü
-		file, err := services.FileServiceInstance.GetFileByID(fileID)
+		folder, err := services.FolderServiceInstance.GetFolderByID(folderID)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
-				"error": "Dosya bulunamadı",
+				"error": "Klasör bulunamadı",
 			})
 		}
 
-		if file.UserID != userID {
+		if folder.UserID != userID {
 			return c.Status(403).JSON(fiber.Map{
-				"error": "Bu dosyayı taşıma yetkiniz yok",
+				"error": "Yetkiniz yok",
 			})
 		}
 
-		// Hedef klasör kontrolü (varsa)
-		if req.FolderID != nil && *req.FolderID != "" {
-			folder, err := services.FolderServiceInstance.GetFolderByID(*req.FolderID)
-			if err != nil {
-				return c.Status(404).JSON(fiber.Map{
-					"error": "Hedef klasör bulunamadı",
-				})
-			}
-
-			if folder.UserID != userID {
-				return c.Status(403).JSON(fiber.Map{
-					"error": "Hedef klasöre erişim yetkiniz yok",
-				})
-			}
-		}
-
-		// Dosyayı taşı
-		if err := services.FolderServiceInstance.MoveFileToFolder(&fileID, req.FolderID); err != nil {
-			log.Printf("Dosya taşıma hatası: %v", err)
+		if err := services.FolderServiceInstance.MoveFolder(folderID, req.FolderID); err != nil {
 			return c.Status(500).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
 
 		return c.JSON(fiber.Map{
-			"message": "Dosya başarıyla taşındı",
+			"message": "Klasör taşındı",
 		})
 	}
 }
+
+func formatFolderResponse(folders []models.Folder) []models.FolderResponse {
+	folderList := make([]models.FolderResponse, 0, len(folders))
+	for _, folder := range folders {
+		count, _ := services.FolderServiceInstance.GetFolderItemCount(folder.ID.Hex())
+		folderList = append(folderList, models.FolderResponse{
+			ID:         folder.ID.Hex(),
+			Name:       folder.Name,
+			Color:      folder.Color,
+			ItemCount:  int(count),
+			IsStarred:  folder.IsStarred,
+			FolderID:   folder.FolderID,
+			DeletedAt:  folder.DeletedAt,
+			CreatedAt:  folder.CreatedAt,
+			UpdatedAt:  folder.UpdatedAt,
+		})
+	}
+	return folderList
+}
+
+
