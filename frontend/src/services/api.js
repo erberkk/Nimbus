@@ -242,6 +242,21 @@ export const fileApi = {
     return await response.json();
   },
 
+  // Get all user conversations
+  getUserConversations: async () => {
+    const response = await fetch(`${API_BASE_URL}/ai/conversations`, {
+      method: 'GET',
+      headers: api.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to fetch conversations');
+    }
+
+    return await response.json();
+  },
+
   // Clear conversation history
   clearConversationHistory: async fileId => {
     const response = await fetch(
@@ -266,7 +281,8 @@ export const folderApi = {
   // Create folder
   createFolder: async folderData => {
     const response = await api.post('/folders/', folderData);
-    return response.data;
+    // api.post already returns the JSON object directly, not response.data
+    return response;
   },
 
   // Get user folders
@@ -287,9 +303,12 @@ export const folderApi = {
   },
 
   // Get folder contents
-  getFolderContents: async folderId => {
+  getFolderContents: async (folderId, starredOnly = false) => {
     if (!folderId) return { files: [], subfolders: [], breadcrumbs: [] };
-    const response = await api.get(`/folders/${folderId}`);
+    const url = starredOnly 
+      ? `/folders/${folderId}?starred_only=true`
+      : `/folders/${folderId}`;
+    const response = await api.get(url);
     return response;
   },
 

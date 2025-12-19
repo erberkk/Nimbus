@@ -124,13 +124,13 @@ func (s *OllamaService) generateEmbeddingFromAPI(text string) ([]float64, error)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call Ollama embedding API: %w", err)
+		return nil, fmt.Errorf("failed to call ollama embedding api: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Ollama embedding API returned status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("ollama embedding api returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var embResp EmbeddingResponse
@@ -177,13 +177,13 @@ func (s *OllamaService) GenerateResponse(prompt string) (string, error) {
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to call Ollama generate API: %w", err)
+		return "", fmt.Errorf("failed to call ollama generate api: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("Ollama generate API returned status %d: %s", resp.StatusCode, string(bodyBytes))
+		return "", fmt.Errorf("ollama generate api returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var genResp GenerateResponse
@@ -283,10 +283,10 @@ func (s *OllamaService) GenerateRAGResponse(question string, contextChunks []str
 
 	for i, chunk := range contextChunks {
 		chunkTokens := s.CountTokens(chunk)
-		
+
 		// Check if adding this chunk exceeds the limit
-		if currentTokens + chunkTokens > maxContextTokens {
-			log.Printf("Context limit reached (%d/%d tokens). Truncating remaining %d chunks.", 
+		if currentTokens+chunkTokens > maxContextTokens {
+			log.Printf("Context limit reached (%d/%d tokens). Truncating remaining %d chunks.",
 				currentTokens, maxContextTokens, len(contextChunks)-i)
 			break
 		}
@@ -316,7 +316,7 @@ func (s *OllamaService) GenerateRAGResponse(question string, contextChunks []str
 
 	sb.WriteString("====================================================\n\n")
 	sb.WriteString(fmt.Sprintf("USER QUESTION: %s\n\n", question))
-	
+
 	// Chain of Thought Prompting (Internal only - do not output reasoning)
 	sb.WriteString("INSTRUCTIONS:\n")
 	sb.WriteString("1. Analyze the user's question and the provided context.\n")
@@ -325,7 +325,7 @@ func (s *OllamaService) GenerateRAGResponse(question string, contextChunks []str
 	sb.WriteString("4. Do NOT output your internal reasoning or analysis steps.\n")
 	sb.WriteString("5. If the context has conflicting info, mention the conflict naturally.\n")
 	sb.WriteString("6. Provide a direct, professional response in Markdown.\n\n")
-	
+
 	sb.WriteString("YOUR ANSWER (Markdown only):\n")
 
 	return s.GenerateResponse(sb.String())

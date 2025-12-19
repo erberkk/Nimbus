@@ -100,22 +100,30 @@ const Navbar = () => {
               anchorEl={languageMenu}
               open={Boolean(languageMenu)}
               onClose={() => setLanguageMenu(null)}
+              onClick={e => e.stopPropagation()}
               PaperProps={{
                 sx: {
                   mt: 1,
                   minWidth: 120,
                   borderRadius: 2,
+                  zIndex: 1300, // Ensure menu is above other elements
                 },
               }}
             >
               <MenuItem
-                onClick={() => handleLanguageChange('tr')}
+                onClick={e => {
+                  e.stopPropagation();
+                  handleLanguageChange('tr');
+                }}
                 selected={i18n.language === 'tr'}
               >
                 🇹🇷 Türkçe
               </MenuItem>
               <MenuItem
-                onClick={() => handleLanguageChange('en')}
+                onClick={e => {
+                  e.stopPropagation();
+                  handleLanguageChange('en');
+                }}
                 selected={i18n.language === 'en'}
               >
                 🇺🇸 English

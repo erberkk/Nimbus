@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"nimbus-backend/database"
+	"nimbus-backend/helpers"
 	"nimbus-backend/models"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -143,3 +144,57 @@ func (s *ConversationService) ClearConversation(userID, fileID string) error {
 	return nil
 }
 
+// GetUserConversations retrieves all conversations for a user with file information
+func (s *ConversationService) GetUserConversations(userID string) ([]models.ConversationWithFile, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get all conversations for the user, ordered by updated_at descending
+	cursor, err := database.ConversationCollection.Find(ctx, bson.M{
+		"user_id": userID,
+	}, options.Find().SetSort(bson.M{"updated_at": -1}))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversations: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var conversations []models.Conversation
+	if err = cursor.All(ctx, &conversations); err != nil {
+		return nil, fmt.Errorf("failed to decode conversations: %w", err)
+	}
+
+	// Get file information for each conversation
+	conversationsWithFile := make([]models.ConversationWithFile, 0, len(conversations))
+	for _, conv := range conversations {
+		// Get file information
+		file, err := FileServiceInstance.GetFileByID(conv.FileID)
+		if err != nil {
+			// Skip if file not found (might be deleted)
+			continue
+		}
+
+		// Check if user still has access to the file
+		hasAccess, err := helpers.CanUserAccess(userID, "file", conv.FileID, helpers.AccessLevelRead)
+		if err != nil || !hasAccess {
+			// Skip if user no longer has access
+			continue
+		}
+
+		conversationsWithFile = append(conversationsWithFile, models.ConversationWithFile{
+			ID:        conv.ID.Hex(),
+			FileID:    conv.FileID,
+			Messages:  conv.Messages,
+			CreatedAt: conv.CreatedAt,
+			UpdatedAt: conv.UpdatedAt,
+			File: models.FileInfo{
+				ID:          file.ID.Hex(),
+				Filename:    file.Filename,
+				ContentType: file.ContentType,
+				Size:        file.Size,
+			},
+		})
+	}
+
+	return conversationsWithFile, nil
+}

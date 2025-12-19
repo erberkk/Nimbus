@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log"
 	"nimbus-backend/database"
 	"nimbus-backend/helpers"
 	"nimbus-backend/models"
@@ -193,7 +194,7 @@ func (fs *FolderService) getFolderItemCountRecursive(ctx context.Context, folder
 
 	// Direkt dosya sayısını al (sadece silinmemiş dosyalar)
 	fileCount, err := database.FileCollection.CountDocuments(ctx, bson.M{
-		"folder_id": folderID,
+		"folder_id":  folderID,
 		"deleted_at": nil,
 	})
 	if err != nil {
@@ -203,7 +204,7 @@ func (fs *FolderService) getFolderItemCountRecursive(ctx context.Context, folder
 
 	// Alt klasörleri al (sadece silinmemiş klasörler)
 	cursor, err := database.FolderCollection.Find(ctx, bson.M{
-		"folder_id": folderID,
+		"folder_id":  folderID,
 		"deleted_at": nil,
 	})
 	if err != nil {
@@ -226,6 +227,63 @@ func (fs *FolderService) getFolderItemCountRecursive(ctx context.Context, folder
 	}
 
 	return totalCount, nil
+}
+
+// GetFolderSize - Klasördeki toplam dosya boyutunu hesapla (recursive - tüm alt öğeler)
+func (fs *FolderService) GetFolderSize(folderID string) (int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	return fs.getFolderSizeRecursive(ctx, folderID)
+}
+
+// getFolderSizeRecursive - Recursive olarak klasördeki tüm dosyaların toplam boyutunu hesapla
+func (fs *FolderService) getFolderSizeRecursive(ctx context.Context, folderID string) (int64, error) {
+	var totalSize int64 = 0
+
+	// Direkt dosyaların boyutunu al (sadece silinmemiş dosyalar)
+	cursor, err := database.FileCollection.Find(ctx, bson.M{
+		"folder_id":  folderID,
+		"deleted_at": nil,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("dosyalar alınamadı: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var file models.File
+		if err := cursor.Decode(&file); err != nil {
+			continue
+		}
+		totalSize += file.Size
+	}
+
+	// Alt klasörleri al (sadece silinmemiş klasörler)
+	folderCursor, err := database.FolderCollection.Find(ctx, bson.M{
+		"folder_id":  folderID,
+		"deleted_at": nil,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("alt klasörler alınamadı: %v", err)
+	}
+	defer folderCursor.Close(ctx)
+
+	var subFolders []models.Folder
+	if err := folderCursor.All(ctx, &subFolders); err != nil {
+		return 0, fmt.Errorf("alt klasörler decode edilemedi: %v", err)
+	}
+
+	// Her alt klasör için recursive olarak boyut hesapla
+	for _, subFolder := range subFolders {
+		subSize, err := fs.getFolderSizeRecursive(ctx, subFolder.ID.Hex())
+		if err != nil {
+			return 0, err
+		}
+		totalSize += subSize
+	}
+
+	return totalSize, nil
 }
 
 // GetUserStorageUsage - Kullanıcının toplam depolama kullanımını hesapla
@@ -408,7 +466,35 @@ func (fs *FolderService) GetSubFolders(parentFolderID string) ([]models.Folder, 
 	return folders, nil
 }
 
-// GetStarredFolders - Yıldızlı klasörleri getir (silinmemiş)
+// GetStarredSubFolders - Belirtilen klasörün star'lanmış alt klasörlerini getir
+func (fs *FolderService) GetStarredSubFolders(parentFolderID string, userID string) ([]models.Folder, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"folder_id":  parentFolderID,
+		"user_id":    userID,
+		"is_starred": true,
+		"deleted_at": nil,
+	}
+
+	cursor, err := database.FolderCollection.Find(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("star'lanmış alt klasörler sorgulanamadı: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var folders []models.Folder
+	if err := cursor.All(ctx, &folders); err != nil {
+		return nil, fmt.Errorf("alt klasörler decode edilemedi: %v", err)
+	}
+
+	return folders, nil
+}
+
+// GetStarredFolders - Yıldızlı klasörleri getir (silinmemiş, sadece root seviyedeki)
+// Recursive star yapıldığı için sadece root seviyedeki (folder_id null) star'lanmış klasörleri döndürür
+// Alt klasörler normal klasör navigasyonu ile gösterilir
 func (fs *FolderService) GetStarredFolders(userID string) ([]models.Folder, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -417,6 +503,10 @@ func (fs *FolderService) GetStarredFolders(userID string) ([]models.Folder, erro
 		"user_id":    userID,
 		"is_starred": true,
 		"deleted_at": nil,
+		"$or": []bson.M{
+			{"folder_id": nil},
+			{"folder_id": bson.M{"$exists": false}},
+		},
 	}
 	opts := options.Find().SetSort(bson.D{{Key: "updated_at", Value: -1}})
 
@@ -508,9 +598,9 @@ func (fs *FolderService) GetTrashedSubFolders(parentFolderID string) ([]models.F
 	return folders, nil
 }
 
-// ToggleFolderStar - Klasör yıldız durumunu değiştir
+// ToggleFolderStar - Klasör yıldız durumunu değiştir (recursive - alt klasörler ve dosyalar da star'lanır)
 func (fs *FolderService) ToggleFolderStar(folderID string) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	objectID, err := primitive.ObjectIDFromHex(folderID)
@@ -526,6 +616,7 @@ func (fs *FolderService) ToggleFolderStar(folderID string) (bool, error) {
 
 	newStatus := !folder.IsStarred
 
+	// 1. Ana klasörü star'la/unstar'la
 	update := bson.M{
 		"$set": bson.M{
 			"is_starred": newStatus,
@@ -538,7 +629,69 @@ func (fs *FolderService) ToggleFolderStar(folderID string) (bool, error) {
 		return false, fmt.Errorf("klasör güncellenemedi: %v", err)
 	}
 
+	// 2. Recursive olarak alt klasörleri ve dosyaları star'la/unstar'la
+	if err := fs.toggleStarRecursive(ctx, objectID, newStatus); err != nil {
+		log.Printf("Recursive star işlemi hatası: %v", err)
+		// Ana klasör zaten star'landı, hata döndürmeyelim
+	}
+
 	return newStatus, nil
+}
+
+// toggleStarRecursive - Alt klasörleri ve dosyaları recursive olarak star'la/unstar'la
+func (fs *FolderService) toggleStarRecursive(ctx context.Context, folderID primitive.ObjectID, starStatus bool) error {
+	// 1. Bu klasördeki dosyaları star'la/unstar'la
+	_, err := database.FileCollection.UpdateMany(
+		ctx,
+		bson.M{"folder_id": folderID.Hex()},
+		bson.M{
+			"$set": bson.M{
+				"is_starred": starStatus,
+				"updated_at": time.Now(),
+			},
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("dosyalar güncellenemedi: %v", err)
+	}
+
+	// 2. Bu klasörün doğrudan alt klasörlerini bul (folder_id = folderID)
+	cursor, err := database.FolderCollection.Find(ctx, bson.M{"folder_id": folderID.Hex()})
+	if err != nil {
+		return fmt.Errorf("alt klasörler bulunamadı: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var subFolder models.Folder
+		if err := cursor.Decode(&subFolder); err != nil {
+			continue
+		}
+
+		// Alt klasörü star'la/unstar'la
+		_, err := database.FolderCollection.UpdateOne(
+			ctx,
+			bson.M{"_id": subFolder.ID},
+			bson.M{
+				"$set": bson.M{
+					"is_starred": starStatus,
+					"updated_at": time.Now(),
+				},
+			},
+		)
+		if err != nil {
+			log.Printf("Alt klasör güncellenemedi: %v", err)
+			continue
+		}
+
+		// Recursive olarak alt klasörün çocuklarını da star'la/unstar'la
+		if err := fs.toggleStarRecursive(ctx, subFolder.ID, starStatus); err != nil {
+			log.Printf("Recursive star işlemi hatası (alt klasör): %v", err)
+			// Devam et, diğer alt klasörleri de işle
+		}
+	}
+
+	return nil
 }
 
 // SoftDeleteFolder - Klasörü ve içeriğini çöp kutusuna taşı

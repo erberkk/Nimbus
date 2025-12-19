@@ -102,7 +102,7 @@ const FileItemMenu = ({
         }
         if (onToggleStar && !isTrash) {
             fileMenuItems.push(
-                <MenuItem key="star" onClick={() => handleAction(onToggleStar, item)}>
+                <MenuItem key="star" onClick={() => handleAction(onToggleStar, item, itemType)}>
                     <ListItemIcon>
                         {isStarred ? <StarIcon fontSize="small" sx={{ color: '#FFD700' }} /> : <StarBorderIcon fontSize="small" />}
                     </ListItemIcon>
@@ -153,7 +153,7 @@ const FileItemMenu = ({
     } else {
         if (onToggleStar && !isTrash) {
             folderMenuItems.push(
-                <MenuItem key="star" onClick={() => handleAction(onToggleStar, item)}>
+                <MenuItem key="star" onClick={() => handleAction(onToggleStar, item, itemType)}>
                     <ListItemIcon>
                         {isStarred ? <StarIcon fontSize="small" sx={{ color: '#FFD700' }} /> : <StarBorderIcon fontSize="small" />}
                     </ListItemIcon>

@@ -11,11 +11,15 @@ import {
   Button,
   Menu,
   MenuItem,
+  IconButton,
+  Tooltip,
+  Collapse,
+  CircularProgress,
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
-import { folderApi } from '../services/api';
+import { folderApi, fileApi } from '../services/api';
 import HomeIcon from '@mui/icons-material/Home';
 import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -26,13 +30,21 @@ import AddIcon from '@mui/icons-material/Add';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import FolderIcon from '@mui/icons-material/Folder';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { formatRelativeTime } from '../utils/fileTypeUtils';
 
 const MotionBox = motion.create(Box);
 
-const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) => {
+const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu, onConversationClick }) => {
   const { t } = useTranslation();
   const [selected, setSelected] = useState(selectedMenu || 'home');
   const [newMenuAnchor, setNewMenuAnchor] = useState(null);
+  const [conversationsOpen, setConversationsOpen] = useState(true);
+  const [conversations, setConversations] = useState([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
 
   const menuItems = [
     { id: 'home', icon: <HomeIcon />, label: t('sidebar.home') || 'Home', primary: true },
@@ -54,7 +66,51 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
 
   useEffect(() => {
     loadStorageInfo();
+    loadConversations();
   }, []);
+
+  const loadConversations = async () => {
+    try {
+      setConversationsLoading(true);
+      const response = await fileApi.getUserConversations();
+      setConversations(response.conversations || []);
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
+      setConversations([]);
+    } finally {
+      setConversationsLoading(false);
+    }
+  };
+
+  const handleConversationClick = async conversation => {
+    if (onConversationClick) {
+      // Create file object from conversation data
+      const file = {
+        id: conversation.file_id,
+        filename: conversation.file.filename,
+        content_type: conversation.file.content_type,
+        size: conversation.file.size,
+        processing_status: 'completed', // Assume completed if conversation exists
+      };
+      onConversationClick(file);
+      // Refresh conversations after opening
+      await loadConversations();
+    }
+  };
+
+  const handleDeleteConversation = async (e, conversation) => {
+    e.stopPropagation();
+    if (window.confirm(t('ai.delete_conversation_confirm') || 'Bu sohbet geçmişini silmek istediğinize emin misiniz?')) {
+      try {
+        await fileApi.clearConversationHistory(conversation.file_id);
+        window.toast?.success(t('ai.conversation_deleted') || 'Sohbet geçmişi silindi');
+        await loadConversations();
+      } catch (error) {
+        console.error('Failed to delete conversation:', error);
+        window.toast?.error(t('ai.delete_error') || 'Sohbet geçmişi silinemedi');
+      }
+    }
+  };
 
   useEffect(() => {
     setSelected(selectedMenu || 'home');
@@ -258,6 +314,152 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu }) =
           </ListItem>
         ))}
       </List>
+
+      {/* Conversation History Section */}
+      <Box sx={{ px: 2, py: 1, flexShrink: 0 }}>
+        <Divider sx={{ mb: 1, borderColor: 'rgba(255,255,255,0.24)' }} />
+        <ListItemButton
+          onClick={() => setConversationsOpen(!conversationsOpen)}
+          sx={{
+            borderRadius: 1.5,
+            py: 0.75,
+            px: 1,
+            mb: 0.5,
+            '&:hover': {
+              bgcolor: 'rgba(255, 255, 255, 0.10)',
+            },
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 32, color: 'white' }}>
+            <SmartToyIcon sx={{ fontSize: 20 }} />
+          </ListItemIcon>
+          <ListItemText
+            primary={t('sidebar.conversations') || 'Sohbetler'}
+            primaryTypographyProps={{
+              fontSize: '0.85rem',
+              fontWeight: 500,
+              color: 'white',
+            }}
+          />
+          {conversationsOpen ? (
+            <ExpandLessIcon sx={{ color: 'white', fontSize: 20 }} />
+          ) : (
+            <ExpandMoreIcon sx={{ color: 'white', fontSize: 20 }} />
+          )}
+        </ListItemButton>
+
+        <Collapse in={conversationsOpen} timeout="auto" unmountOnExit>
+          <Box
+            sx={{
+              maxHeight: 200,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              '&::-webkit-scrollbar': {
+                width: '4px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: '2px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: 'rgba(255,255,255,0.3)',
+                borderRadius: '2px',
+                '&:hover': {
+                  background: 'rgba(255,255,255,0.5)',
+                },
+              },
+            }}
+          >
+            {conversationsLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={20} sx={{ color: 'white' }} />
+              </Box>
+            ) : conversations.length === 0 ? (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'rgba(255,255,255,0.7)',
+                  fontSize: '0.75rem',
+                  px: 1,
+                  py: 1,
+                  display: 'block',
+                }}
+              >
+                {t('sidebar.no_conversations') || 'Henüz sohbet yok'}
+              </Typography>
+            ) : (
+              conversations.map(conv => (
+                <ListItem
+                  key={conv.id}
+                  disablePadding
+                  sx={{ mb: 0.5 }}
+                >
+                  <ListItemButton
+                    onClick={() => handleConversationClick(conv)}
+                    sx={{
+                      borderRadius: 1,
+                      py: 0.75,
+                      px: 1,
+                      '&:hover': {
+                        bgcolor: 'rgba(255, 255, 255, 0.10)',
+                      },
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 28, color: 'white' }}>
+                      <SmartToyIcon sx={{ fontSize: 16 }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'white',
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {conv.file.filename}
+                        </Typography>
+                      }
+                      secondary={
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'rgba(255,255,255,0.7)',
+                            fontSize: '0.7rem',
+                            display: 'block',
+                          }}
+                        >
+                          {conv.messages.length > 0
+                            ? formatRelativeTime(conv.updated_at)
+                            : t('sidebar.no_messages') || 'Mesaj yok'}
+                        </Typography>
+                      }
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={e => handleDeleteConversation(e, conv)}
+                      sx={{
+                        color: 'rgba(255,255,255,0.7)',
+                        '&:hover': {
+                          color: 'white',
+                          bgcolor: 'rgba(255,255,255,0.1)',
+                        },
+                      }}
+                    >
+                      <DeleteIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </ListItemButton>
+                </ListItem>
+              ))
+            )}
+          </Box>
+        </Collapse>
+      </Box>
 
       {/* Storage Section */}
       <Box sx={{ px: 2, py: 1.5, mt: 'auto', mb: 1, flexShrink: 0 }}>

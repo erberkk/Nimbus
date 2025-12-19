@@ -1,5 +1,5 @@
 import { Box } from '@mui/material';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
 import FileExplorerNew from '../components/FileExplorerNew';
 import CreateFolderDialog from '../components/CreateFolderDialog';
@@ -9,8 +9,29 @@ const HomePage = () => {
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [fileUploadOpen, setFileUploadOpen] = useState(false);
   const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'folder' | 'both'
-  const [selectedMenu, setSelectedMenu] = useState('home');
+  
+  // Load selectedMenu from localStorage on mount
+  const getInitialMenu = () => {
+    try {
+      const saved = localStorage.getItem('nimbus_selected_menu');
+      return saved || 'home';
+    } catch (error) {
+      return 'home';
+    }
+  };
+  
+  const [selectedMenu, setSelectedMenu] = useState(getInitialMenu);
+  const [chatFile, setChatFile] = useState(null); // File to open in chat panel
   const fileExplorerRef = useRef();
+  
+  // Save selectedMenu to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('nimbus_selected_menu', selectedMenu);
+    } catch (error) {
+      console.error('Error saving selected menu:', error);
+    }
+  }, [selectedMenu]);
 
   const handleCreateFolder = () => {
     setCreateFolderOpen(true);
@@ -45,6 +66,10 @@ const HomePage = () => {
         onFileUpload={handleFileUpload}
         onMenuChange={handleMenuChange}
         selectedMenu={selectedMenu}
+        onConversationClick={file => {
+          // Open chat panel with the file
+          setChatFile(file);
+        }}
       />
 
       {/* Main Content */}
@@ -59,7 +84,12 @@ const HomePage = () => {
           p: 2,
         }}
       >
-        <FileExplorerNew ref={fileExplorerRef} selectedMenu={selectedMenu} />
+        <FileExplorerNew 
+          ref={fileExplorerRef} 
+          selectedMenu={selectedMenu}
+          chatFile={chatFile}
+          onChatFileCleared={() => setChatFile(null)}
+        />
       </Box>
 
       {/* Dialogs */}
@@ -69,13 +99,10 @@ const HomePage = () => {
         onSubmit={async folderData => {
           // Use FileExplorerNew's handleCreateFolder function
           if (fileExplorerRef.current?.handleCreateFolder) {
-            try {
-              await fileExplorerRef.current.handleCreateFolder(folderData);
-            } catch (error) {
-              console.error('Folder creation failed:', error);
-            }
+            await fileExplorerRef.current.handleCreateFolder(folderData);
+          } else {
+            throw new Error('FileExplorer handleCreateFolder not available');
           }
-          setCreateFolderOpen(false);
         }}
       />
 

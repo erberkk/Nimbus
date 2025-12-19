@@ -61,18 +61,18 @@ func GetResourceShares() fiber.Handler {
 
 			// For folders, return access list info
 			users, err := services.AccessControlServiceInstance.GetAccessibleUsers("folder", resourceID)
-				if err != nil {
+			if err != nil {
 				log.Printf("Error getting accessible users: %v", err)
 				users = []models.User{}
 			}
 
 			sharedUsers := make([]models.UserResponse, 0, len(users))
 			for _, user := range users {
-					sharedUsers = append(sharedUsers, models.UserResponse{
-						ID:    user.ID.Hex(),
-						Email: user.Email,
-						Name:  user.Name,
-					})
+				sharedUsers = append(sharedUsers, models.UserResponse{
+					ID:    user.ID.Hex(),
+					Email: user.Email,
+					Name:  user.Name,
+				})
 			}
 
 			return c.JSON(fiber.Map{
@@ -87,18 +87,18 @@ func GetResourceShares() fiber.Handler {
 
 		// For files, return access list info
 		users, err := services.AccessControlServiceInstance.GetAccessibleUsers("file", resourceID)
-			if err != nil {
+		if err != nil {
 			log.Printf("Error getting accessible users: %v", err)
 			users = []models.User{}
 		}
 
 		sharedUsers := make([]models.UserResponse, 0, len(users))
 		for _, user := range users {
-				sharedUsers = append(sharedUsers, models.UserResponse{
-					ID:    user.ID.Hex(),
-					Email: user.Email,
-					Name:  user.Name,
-				})
+			sharedUsers = append(sharedUsers, models.UserResponse{
+				ID:    user.ID.Hex(),
+				Email: user.Email,
+				Name:  user.Name,
+			})
 		}
 
 		return c.JSON(fiber.Map{
@@ -168,29 +168,31 @@ func GetSharedWithMe() fiber.Handler {
 			for fileCursor.Next(context.Background()) {
 				var file models.File
 				if err := fileCursor.Decode(&file); err == nil {
-					// Get owner info
-					var owner models.User
-					database.UserCollection.FindOne(context.Background(), bson.M{
-						"_id": file.UserID,
-					}).Decode(&owner)
-
 					sharedItems = append(sharedItems, fiber.Map{
 						"resource": models.FileResponse{
-							ID:          file.ID.Hex(),
-							Filename:    file.Filename,
-							Size:        file.Size,
-							ContentType: file.ContentType,
-							CreatedAt:   file.CreatedAt,
-							UpdatedAt:   file.UpdatedAt,
+							ID:               file.ID.Hex(),
+							UserID:           file.UserID,
+							Filename:         file.Filename,
+							Size:             file.Size,
+							ContentType:      file.ContentType,
+							MinioPath:        file.MinioPath,
+							PublicLink:       file.PublicLink,
+							AccessList:       file.AccessList,
+							ParentID:         file.ParentID,
+							Ancestors:        file.Ancestors,
+							IsStarred:        file.IsStarred,
+							ProcessingStatus: file.ProcessingStatus,
+							ProcessingError:  file.ProcessingError,
+							ProcessedAt:      file.ProcessedAt,
+							ChunkCount:       file.ChunkCount,
+							DeletedAt:        file.DeletedAt,
+							CreatedAt:        file.CreatedAt,
+							UpdatedAt:        file.UpdatedAt,
+							Owner:            services.UserServiceInstance.GetUserResponse(file.UserID),
 						},
 						"access_type":   getAccessTypeFromList(file.AccessList, userID),
 						"resource_type": "file",
-						"owner": models.UserResponse{
-							ID:     owner.ID.Hex(),
-							Email:  owner.Email,
-							Name:   owner.Name,
-							Avatar: owner.Avatar,
-						},
+						"owner":         services.UserServiceInstance.GetUserResponse(file.UserID),
 					})
 				}
 			}
@@ -205,13 +207,6 @@ func GetSharedWithMe() fiber.Handler {
 			for folderCursor.Next(context.Background()) {
 				var folder models.Folder
 				if err := folderCursor.Decode(&folder); err == nil {
-					// Get owner info
-					owner, err := services.UserServiceInstance.GetUserByID(folder.UserID)
-					if err != nil {
-						log.Printf("Error getting owner: %v", err)
-						owner = &models.User{}
-					}
-
 					// Calculate recursive item count for the shared folder
 					count, err := getRecursiveItemCount(userID, folder.ID.Hex())
 					if err != nil {
@@ -219,23 +214,21 @@ func GetSharedWithMe() fiber.Handler {
 						count = 0
 					}
 
+					size, _ := services.FolderServiceInstance.GetFolderSize(folder.ID.Hex())
 					sharedItems = append(sharedItems, fiber.Map{
 						"resource": models.FolderResponse{
 							ID:        folder.ID.Hex(),
 							Name:      folder.Name,
 							Color:     folder.Color,
 							ItemCount: int(count),
+							Size:      size,
 							CreatedAt: folder.CreatedAt,
 							UpdatedAt: folder.UpdatedAt,
+							Owner:     services.UserServiceInstance.GetUserResponse(folder.UserID),
 						},
 						"access_type":   services.AccessControlServiceInstance.GetAccessTypeFromList(folder.AccessList, userID),
 						"resource_type": "folder",
-						"owner": models.UserResponse{
-							ID:     owner.ID.Hex(),
-							Email:  owner.Email,
-							Name:   owner.Name,
-							Avatar: owner.Avatar,
-						},
+						"owner":         services.UserServiceInstance.GetUserResponse(folder.UserID),
 					})
 				}
 			}
@@ -295,12 +288,6 @@ func GetSharedFolderContents() fiber.Handler {
 				// Alt klasör için erişim bilgilerini al
 				accessType := getAccessTypeFromList(subFolder.AccessList, userID)
 
-				// Sahibi bilgilerini al
-				var owner models.User
-				database.UserCollection.FindOne(context.Background(), bson.M{
-					"_id": subFolder.UserID,
-				}).Decode(&owner)
-
 				// Calculate real count for this accessible subfolder
 				count, err := services.FolderServiceInstance.GetFolderItemCount(subFolder.ID.Hex())
 				if err != nil {
@@ -317,15 +304,10 @@ func GetSharedFolderContents() fiber.Handler {
 						FolderID:  subFolder.FolderID,
 						CreatedAt: subFolder.CreatedAt,
 						UpdatedAt: subFolder.UpdatedAt,
+						Owner:     services.UserServiceInstance.GetUserResponse(subFolder.UserID),
 					},
 					"access_type": accessType,
-					"owner": models.UserResponse{
-						ID:     owner.ID.Hex(),
-						Email:  owner.Email,
-						Name:   owner.Name,
-						Avatar: owner.Avatar,
-					},
-					"is_shared": true,
+					"is_shared":   true,
 				})
 			}
 		}
@@ -347,29 +329,31 @@ func GetSharedFolderContents() fiber.Handler {
 				// Dosya için erişim bilgilerini al
 				accessType := getAccessTypeFromList(file.AccessList, userID)
 
-				// Sahibi bilgilerini al
-				var owner models.User
-				database.UserCollection.FindOne(context.Background(), bson.M{
-					"_id": file.UserID,
-				}).Decode(&owner)
-
 				accessibleFiles = append(accessibleFiles, fiber.Map{
 					"file": models.FileResponse{
-						ID:          file.ID.Hex(),
-						Filename:    file.Filename,
-						Size:        file.Size,
-						ContentType: file.ContentType,
-						CreatedAt:   file.CreatedAt,
-						UpdatedAt:   file.UpdatedAt,
+						ID:               file.ID.Hex(),
+						UserID:           file.UserID,
+						Filename:         file.Filename,
+						Size:             file.Size,
+						ContentType:      file.ContentType,
+						MinioPath:        file.MinioPath,
+						PublicLink:       file.PublicLink,
+						AccessList:       file.AccessList,
+						ParentID:         file.ParentID,
+						Ancestors:        file.Ancestors,
+						IsStarred:        file.IsStarred,
+						ProcessingStatus: file.ProcessingStatus,
+						ProcessingError:  file.ProcessingError,
+						ProcessedAt:      file.ProcessedAt,
+						ChunkCount:       file.ChunkCount,
+						DeletedAt:        file.DeletedAt,
+						CreatedAt:        file.CreatedAt,
+						UpdatedAt:        file.UpdatedAt,
+						Owner:            services.UserServiceInstance.GetUserResponse(file.UserID),
 					},
 					"access_type": accessType,
-					"owner": models.UserResponse{
-						ID:     owner.ID.Hex(),
-						Email:  owner.Email,
-						Name:   owner.Name,
-						Avatar: owner.Avatar,
-					},
-					"is_shared": true,
+					"owner":       services.UserServiceInstance.GetUserResponse(file.UserID),
+					"is_shared":   true,
 				})
 			}
 		}
@@ -385,6 +369,8 @@ func GetSharedFolderContents() fiber.Handler {
 				count = 0
 			}
 			subFolder.ItemCount = int(count)
+			size, _ := services.FolderServiceInstance.GetFolderSize(subFolder.ID)
+			subFolder.Size = size
 			folderList = append(folderList, fiber.Map{
 				"resource":      subFolder,
 				"access_type":   subFolderData["access_type"],
@@ -404,15 +390,18 @@ func GetSharedFolderContents() fiber.Handler {
 			})
 		}
 
+		size, _ := services.FolderServiceInstance.GetFolderSize(folderID)
 		return c.JSON(fiber.Map{
 			"folder": models.FolderResponse{
 				ID:        folder.ID.Hex(),
 				Name:      folder.Name,
 				Color:     folder.Color,
 				ItemCount: len(accessibleSubFolders) + len(accessibleFiles),
+				Size:      size,
 				FolderID:  folder.FolderID,
 				CreatedAt: folder.CreatedAt,
 				UpdatedAt: folder.UpdatedAt,
+				Owner:     services.UserServiceInstance.GetUserResponse(folder.UserID),
 			},
 			"folders": folderList,
 			"files":   fileList,

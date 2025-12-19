@@ -13,7 +13,7 @@ import FileExplorerDialogs from './FileExplorerDialogs';
 import MoveDialog from './MoveDialog';
 import React, { useState } from 'react';
 
-const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
+const FileExplorerNew = forwardRef(({ selectedMenu = 'home', chatFile, onChatFileCleared }, ref) => {
   const { t } = useTranslation();
   const { user } = useAuth();
 
@@ -129,6 +129,8 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home' }, ref) => {
         onMove={handleOpenMoveDialog}
         onToggleStar={fileExplorer.toggleStar}
         onRestore={fileExplorer.restoreItem}
+        chatFile={chatFile}
+        onChatFileCleared={onChatFileCleared}
       />
 
       <FileExplorerContextMenu

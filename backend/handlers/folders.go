@@ -52,10 +52,12 @@ func CreateFolder(cfg *config.Config) fiber.Handler {
 				Color:      folder.Color,
 				PublicLink: folder.PublicLink,
 				ItemCount:  0,
+				Size:       0,
 				AccessList: folder.AccessList,
 				FolderID:   folder.FolderID,
 				CreatedAt:  folder.CreatedAt,
 				UpdatedAt:  folder.UpdatedAt,
+				Owner:      services.UserServiceInstance.GetUserResponse(folder.UserID),
 			},
 		})
 	}
@@ -85,11 +87,14 @@ func GetUserFolders(cfg *config.Config) fiber.Handler {
 			// Her klasördeki dosya sayısını hesapla
 			count, _ := services.FolderServiceInstance.GetFolderItemCount(folder.ID.Hex())
 
+			size, _ := services.FolderServiceInstance.GetFolderSize(folder.ID.Hex())
 			folderList = append(folderList, models.FolderResponse{
 				ID:        folder.ID.Hex(),
 				Name:      folder.Name,
 				Color:     folder.Color,
 				ItemCount: int(count),
+				Size:      size,
+				Owner:     services.UserServiceInstance.GetUserResponse(folder.UserID),
 				IsStarred: folder.IsStarred,
 				CreatedAt: folder.CreatedAt,
 				UpdatedAt: folder.UpdatedAt,
@@ -136,6 +141,8 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
+		// Starred only kontrolü (query parametresi)
+		starredOnly := c.Query("starred_only") == "true"
 
 		// Klasördeki alt klasörleri ve dosyaları getir
 		var subFolders []models.Folder
@@ -146,7 +153,11 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 		if folder.DeletedAt != nil {
 			subFolders, err = services.FolderServiceInstance.GetTrashedSubFolders(folderID)
 		} else {
-			subFolders, err = services.FolderServiceInstance.GetSubFolders(folderID)
+			if starredOnly {
+				subFolders, err = services.FolderServiceInstance.GetStarredSubFolders(folderID, userID)
+			} else {
+				subFolders, err = services.FolderServiceInstance.GetSubFolders(folderID)
+			}
 		}
 
 		if err != nil {
@@ -159,7 +170,11 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 		if folder.DeletedAt != nil {
 			files, err = services.FolderServiceInstance.GetTrashedFolderFiles(folderID)
 		} else {
-			files, err = services.FolderServiceInstance.GetFolderFiles(folderID)
+			if starredOnly {
+				files, err = services.FileServiceInstance.GetStarredFolderFiles(folderID, userID)
+			} else {
+				files, err = services.FolderServiceInstance.GetFolderFiles(folderID)
+			}
 		}
 
 		if err != nil {
@@ -179,16 +194,19 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 				count = 0
 			}
 
+			size, _ := services.FolderServiceInstance.GetFolderSize(subFolder.ID.Hex())
 			folderList = append(folderList, models.FolderResponse{
 				ID:        subFolder.ID.Hex(),
 				Name:      subFolder.Name,
 				Color:     subFolder.Color,
 				ItemCount: int(count),
+				Size:      size,
 				IsStarred: subFolder.IsStarred,
 				FolderID:  subFolder.FolderID,
 				DeletedAt: subFolder.DeletedAt,
 				CreatedAt: subFolder.CreatedAt,
 				UpdatedAt: subFolder.UpdatedAt,
+				Owner:     services.UserServiceInstance.GetUserResponse(subFolder.UserID),
 			})
 		}
 
@@ -217,15 +235,18 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
+		size, _ := services.FolderServiceInstance.GetFolderSize(folderID)
 		return c.JSON(fiber.Map{
 			"folder": models.FolderResponse{
 				ID:        folder.ID.Hex(),
 				Name:      folder.Name,
 				Color:     folder.Color,
 				ItemCount: len(subFolders) + len(files),
+				Size:      size,
 				FolderID:  folder.FolderID,
 				CreatedAt: folder.CreatedAt,
 				UpdatedAt: folder.UpdatedAt,
+				Owner:     services.UserServiceInstance.GetUserResponse(folder.UserID),
 			},
 			"folders": folderList,
 			"files":   fileList,
@@ -313,15 +334,19 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 		folderList := make([]models.FolderResponse, 0, len(userFolders))
 		for _, folder := range userFolders {
 			count, _ := services.FolderServiceInstance.GetFolderItemCount(folder.ID.Hex())
+
+			size, _ := services.FolderServiceInstance.GetFolderSize(folder.ID.Hex())
 			folderList = append(folderList, models.FolderResponse{
 				ID:        folder.ID.Hex(),
 				Name:      folder.Name,
 				Color:     folder.Color,
 				ItemCount: int(count),
+				Size:      size,
 				IsStarred: folder.IsStarred,
 				DeletedAt: folder.DeletedAt,
 				CreatedAt: folder.CreatedAt,
 				UpdatedAt: folder.UpdatedAt,
+				Owner:     services.UserServiceInstance.GetUserResponse(folder.UserID),
 			})
 		}
 
@@ -347,6 +372,7 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 				DeletedAt:        file.DeletedAt,
 				CreatedAt:        file.CreatedAt,
 				UpdatedAt:        file.UpdatedAt,
+				Owner:            services.UserServiceInstance.GetUserResponse(file.UserID),
 			})
 		}
 
@@ -627,7 +653,7 @@ func MoveFolder(cfg *config.Config) fiber.Handler {
 		}
 
 		folderID := c.Params("id")
-		
+
 		var req struct {
 			FolderID *string `json:"folder_id"`
 		}
@@ -667,19 +693,21 @@ func formatFolderResponse(folders []models.Folder) []models.FolderResponse {
 	folderList := make([]models.FolderResponse, 0, len(folders))
 	for _, folder := range folders {
 		count, _ := services.FolderServiceInstance.GetFolderItemCount(folder.ID.Hex())
+		size, _ := services.FolderServiceInstance.GetFolderSize(folder.ID.Hex())
+
 		folderList = append(folderList, models.FolderResponse{
-			ID:         folder.ID.Hex(),
-			Name:       folder.Name,
-			Color:      folder.Color,
-			ItemCount:  int(count),
-			IsStarred:  folder.IsStarred,
-			FolderID:   folder.FolderID,
-			DeletedAt:  folder.DeletedAt,
-			CreatedAt:  folder.CreatedAt,
-			UpdatedAt:  folder.UpdatedAt,
+			ID:        folder.ID.Hex(),
+			Name:      folder.Name,
+			Color:     folder.Color,
+			ItemCount: int(count),
+			Size:      size,
+			IsStarred: folder.IsStarred,
+			FolderID:  folder.FolderID,
+			DeletedAt: folder.DeletedAt,
+			CreatedAt: folder.CreatedAt,
+			UpdatedAt: folder.UpdatedAt,
+			Owner:     services.UserServiceInstance.GetUserResponse(folder.UserID),
 		})
 	}
 	return folderList
 }
-
-

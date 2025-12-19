@@ -219,13 +219,13 @@ func (s *ChromaService) AddDocuments(chunks []ChunkData) error {
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to add documents to Chroma: %w", err)
+		return fmt.Errorf("failed to add documents to chroma: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Chroma add documents API returned status %d: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("chroma add documents api returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	// Sync with file router if enabled and we have file_id metadata
@@ -316,13 +316,13 @@ func (s *ChromaService) queryChromaDB(queryEmbedding []float64, fileID string, t
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query Chroma: %w", err)
+		return nil, fmt.Errorf("failed to query chroma: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Chroma query API returned status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("chroma query api returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var queryResp QueryResponse
@@ -381,13 +381,13 @@ func (s *ChromaService) DeleteDocumentChunks(fileID string) error {
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to delete chunks from Chroma: %w", err)
+		return fmt.Errorf("failed to delete chunks from chroma: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Chroma delete API returned status %d: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("chroma delete api returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	// Remove from file router if enabled
@@ -523,13 +523,13 @@ func (s *ChromaService) keywordSearchChroma(keywords []string, fileID string, to
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query Chroma: %w", err)
+		return nil, fmt.Errorf("failed to query chroma: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Chroma get API returned status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("chroma get api returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	// Read raw response to handle different formats
@@ -720,7 +720,6 @@ func (s *ChromaService) ReciprocalRankFusion(semantic, keyword []ChunkResult, to
 
 	return merged, nil
 }
-
 
 // sortResultsByDistance sorts chunk results by distance (ascending)
 func sortResultsByDistance(results []ChunkResult) {

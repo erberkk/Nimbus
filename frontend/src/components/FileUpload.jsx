@@ -43,6 +43,17 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
     }
   }, [mode]);
 
+  // Modal açıldığında state'leri temizle
+  useEffect(() => {
+    if (open) {
+      setError('');
+      setSuccess('');
+      setUploadedFile(null);
+      setProgress(0);
+      setUploading(false);
+    }
+  }, [open]);
+
   const handleDrag = e => {
     e.preventDefault();
     e.stopPropagation();
@@ -109,7 +120,7 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
         type: file.type,
       });
 
-      // Call success callback
+      // Call success callback immediately to refresh content
       if (onUploadSuccess) {
         onUploadSuccess(file.name);
       }
@@ -165,64 +176,51 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        await uploadFile(file);
+        // Her dosya için hem MinIO'ya yükle hem MongoDB'ye kayıt oluştur
+        await uploadSingleFileComplete(file);
         uploadedCount++;
         setProgress((uploadedCount / totalFiles) * 100);
       }
 
       setSuccess(`${uploadedCount} dosya başarıyla yüklendi`);
+      // Hemen callback'i çağır ve içeriği yenile
+      if (onUploadSuccess) {
+        onUploadSuccess();
+      }
+      // Dialog'u kapat
       setTimeout(() => {
-        onUploadSuccess?.();
         onClose();
-      }, 2000);
+      }, 1000);
     } catch (error) {
       setError(`Yükleme hatası: ${error.message}`);
+      window.toast?.error(`Yükleme hatası: ${error.message}`);
     } finally {
       setUploading(false);
     }
   };
 
-  const uploadFile = async file => {
-    // Aynı upload logic ama tek dosya için
-    return new Promise((resolve, reject) => {
-      const performUpload = async () => {
-        try {
-          // Presigned URL al
-          const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type);
-          const { presigned_url } = presignedResponse;
+  // Tek dosya için tam yükleme işlemi (MinIO + MongoDB)
+  const uploadSingleFileComplete = async file => {
+    try {
+      // Step 1: Get presigned URL
+      const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type || 'application/octet-stream');
+      const { presigned_url, minio_path } = presignedResponse;
 
-          // Dosyayı yükle
-          const xhr = new XMLHttpRequest();
-          xhr.upload.addEventListener('progress', e => {
-            if (e.lengthComputable) {
-              // Bu dosyadaki progress'ı hesapla
-              const fileProgress = e.loaded / e.total;
-              setProgress(prev => Math.min(prev + fileProgress * 10, 100));
-            }
-          });
+      // Step 2: Upload file to MinIO using presigned URL
+      await uploadToMinIO(presigned_url, file);
 
-          xhr.addEventListener('load', () => {
-            if (xhr.status === 200) {
-              resolve();
-            } else {
-              reject(new Error(`Upload failed: ${xhr.statusText}`));
-            }
-          });
-
-          xhr.addEventListener('error', () => {
-            reject(new Error('Network error during upload'));
-          });
-
-          xhr.open('PUT', presigned_url);
-          xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-          xhr.send(file);
-        } catch (error) {
-          reject(error);
-        }
-      };
-
-      performUpload();
-    });
+      // Step 3: Save file metadata to MongoDB
+      await fileApi.createFile({
+        filename: file.name,
+        size: file.size,
+        content_type: file.type || 'application/octet-stream',
+        minio_path: minio_path,
+        folder_id: currentFolderId || null,
+      });
+    } catch (error) {
+      console.error('File upload error:', error);
+      throw error;
+    }
   };
 
   const handleFileSelect = e => {

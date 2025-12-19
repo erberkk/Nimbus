@@ -36,3 +36,21 @@ type AddMessageRequest struct {
 	Content string   `json:"content" validate:"required"`
 	Sources []string `json:"sources,omitempty"`
 }
+
+// FileInfo contains basic file information for conversation list
+type FileInfo struct {
+	ID          string `json:"id"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	Size        int64  `json:"size"`
+}
+
+// ConversationWithFile contains conversation with file information
+type ConversationWithFile struct {
+	ID        string    `json:"id"`
+	FileID    string    `json:"file_id"`
+	Messages  []Message `json:"messages"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	File      FileInfo  `json:"file"`
+}

@@ -163,21 +163,12 @@ func ProcessDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if user has access to the file
-		if file.UserID != userID {
-			// Check if file is shared with read or write access
-			hasAccess := false
-			for _, access := range file.AccessList {
-				if access.UserID == userID {
-					hasAccess = true
-					break
-				}
-			}
-			if !hasAccess {
-				return c.Status(403).JSON(fiber.Map{
-					"error": "Bu dosyaya erişim yetkiniz yok",
-				})
-			}
+		// Check if user has access to the file (using proper access control with hierarchical checks)
+		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
+		if err != nil || !hasAccess {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Bu dosyaya erişim yetkiniz yok",
+			})
 		}
 
 		// Check if file is PDF or DOCX
@@ -401,6 +392,7 @@ func ListUserFiles(cfg *config.Config) fiber.Handler {
 				ChunkCount:       file.ChunkCount,
 				CreatedAt:        file.CreatedAt,
 				UpdatedAt:        file.UpdatedAt,
+				Owner:            services.UserServiceInstance.GetUserResponse(file.UserID),
 			})
 		}
 
@@ -667,7 +659,7 @@ func MoveFile(cfg *config.Config) fiber.Handler {
 		}
 
 		fileID := c.Params("id")
-		
+
 		var req struct {
 			FolderID *string `json:"folder_id"`
 		}
@@ -725,6 +717,7 @@ func formatFileResponse(files []models.File) []models.FileResponse {
 			DeletedAt:        file.DeletedAt,
 			CreatedAt:        file.CreatedAt,
 			UpdatedAt:        file.UpdatedAt,
+			Owner:            services.UserServiceInstance.GetUserResponse(file.UserID),
 		})
 	}
 	return fileList

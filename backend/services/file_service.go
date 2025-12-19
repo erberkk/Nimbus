@@ -198,7 +198,36 @@ func (fs *FileService) GetRecentFiles(userID string, limit int64) ([]models.File
 	return files, nil
 }
 
-// GetStarredFiles - Yıldızlı dosyaları getir (silinmemiş)
+// GetStarredFolderFiles - Belirtilen klasördeki star'lanmış dosyaları getir
+func (fs *FileService) GetStarredFolderFiles(folderID string, userID string) ([]models.File, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"folder_id":  folderID,
+		"user_id":    userID,
+		"is_starred": true,
+		"deleted_at": nil,
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}})
+
+	cursor, err := database.FileCollection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("star'lanmış dosyalar listelenemedi: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var files []models.File
+	if err := cursor.All(ctx, &files); err != nil {
+		return nil, fmt.Errorf("dosyalar decode edilemedi: %v", err)
+	}
+
+	return files, nil
+}
+
+// GetStarredFiles - Yıldızlı dosyaları getir (silinmemiş, sadece root seviyedeki)
+// Recursive star yapıldığı için sadece root seviyedeki (folder_id null) star'lanmış dosyaları döndürür
+// Alt klasörlerdeki dosyalar normal klasör navigasyonu ile gösterilir
 func (fs *FileService) GetStarredFiles(userID string) ([]models.File, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -207,6 +236,10 @@ func (fs *FileService) GetStarredFiles(userID string) ([]models.File, error) {
 		"user_id":    userID,
 		"is_starred": true,
 		"deleted_at": nil,
+		"$or": []bson.M{
+			{"folder_id": nil},
+			{"folder_id": bson.M{"$exists": false}},
+		},
 	}
 	opts := options.Find().SetSort(bson.D{{Key: "updated_at", Value: -1}})
 
@@ -440,4 +473,3 @@ func (fs *FileService) MoveFile(fileID string, targetFolderID *string) error {
 
 	return nil
 }
-

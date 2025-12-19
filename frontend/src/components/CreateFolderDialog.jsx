@@ -28,11 +28,21 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [color, setColor] = useState(FOLDER_COLORS[0]);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
-    if (name.trim()) {
-      onSubmit({ name: name.trim(), color });
+  const handleSubmit = async () => {
+    if (!name.trim() || loading) return;
+    
+    try {
+      setLoading(true);
+      await onSubmit({ name: name.trim(), color });
+      // Başarılı olursa dialog'u kapat
       handleClose();
+    } catch (error) {
+      // Hata durumunda dialog açık kalır, hata toast'ı zaten gösterilmiş olacak
+      console.error('Folder creation error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -174,7 +184,7 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={!name.trim()}
+          disabled={!name.trim() || loading}
           sx={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
@@ -192,7 +202,7 @@ const CreateFolderDialog = ({ open, onClose, onSubmit }) => {
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
         >
-          Oluştur
+          {loading ? t('loading') || 'Yükleniyor...' : 'Oluştur'}
         </Button>
       </DialogActions>
     </Dialog>

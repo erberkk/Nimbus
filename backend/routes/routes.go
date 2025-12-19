@@ -57,7 +57,8 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	ai.Use(middleware.RequireAuth(cfg.JWTSecret))
 	{
 		ai.Post("/query", handlers.QueryDocument(cfg))                     // Query processed document
-		ai.Get("/conversation", handlers.GetConversationHistory(cfg))      // Get chat history
+		ai.Get("/conversation", handlers.GetConversationHistory(cfg))      // Get chat history for a file
+		ai.Get("/conversations", handlers.GetUserConversations(cfg))       // Get all user conversations
 		ai.Delete("/conversation", handlers.ClearConversationHistory(cfg)) // Clear chat history
 	}
 

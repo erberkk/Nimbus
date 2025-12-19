@@ -28,6 +28,7 @@ type FolderResponse struct {
 	Color      string               `json:"color"`
 	PublicLink string               `json:"public_link"`
 	ItemCount  int                  `json:"item_count"`
+	Size       int64                `json:"size"` // Total size of all files in folder (recursive)
 	AccessList []AccessEntry        `json:"access_list"`
 	ParentID   *primitive.ObjectID  `json:"parent_id,omitempty"`
 	Ancestors  []primitive.ObjectID `json:"ancestors"`
@@ -36,6 +37,7 @@ type FolderResponse struct {
 	DeletedAt  *time.Time           `json:"deleted_at,omitempty"`
 	CreatedAt  time.Time            `json:"created_at"`
 	UpdatedAt  time.Time            `json:"updated_at"`
+	Owner      *UserResponse         `json:"owner,omitempty"` // Owner information
 }
 
 type CreateFolderRequest struct {

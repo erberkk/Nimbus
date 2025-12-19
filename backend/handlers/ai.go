@@ -56,21 +56,12 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if user has access to the file
-		if file.UserID != userID {
-			// Check if file is shared with read or write access
-			hasAccess := false
-			for _, access := range file.AccessList {
-				if access.UserID == userID {
-					hasAccess = true
-					break
-				}
-			}
-			if !hasAccess {
-				return c.Status(403).JSON(fiber.Map{
-					"error": "Bu dosyaya erişim yetkiniz yok",
-				})
-			}
+		// Check if user has access to the file (using proper access control with hierarchical checks)
+		hasAccess, err := helpers.CanUserAccess(userID, "file", req.FileID, helpers.AccessLevelRead)
+		if err != nil || !hasAccess {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Bu dosyaya erişim yetkiniz yok",
+			})
 		}
 
 		// Check if file has been processed
@@ -220,9 +211,9 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			if perfectMatchIdx >= 0 {
 				perfectMatch := chunks[0] // It's now at position 0
 				textLower := strings.ToLower(perfectMatch.Text)
-				hasComparisonTableMarker := strings.Contains(textLower, "comparison table:") || 
-				                            strings.Contains(textLower, "comparison of")
-				
+				hasComparisonTableMarker := strings.Contains(textLower, "comparison table:") ||
+					strings.Contains(textLower, "comparison of")
+
 				if hasComparisonTableMarker && isSpecificTableQuery(req.Question, keyTerms) {
 					chunks = []services.ChunkResult{perfectMatch}
 					log.Printf("🔥 Reduced to ONLY perfect match chunk (specific table query)")
@@ -375,28 +366,13 @@ func GetConversationHistory(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if user has access to the file
-		file, err := services.FileServiceInstance.GetFileByID(fileID)
-		if err != nil {
-			return c.Status(404).JSON(fiber.Map{
-				"error": "Dosya bulunamadı",
+		// Verify access (using proper access control with hierarchical checks)
+		// This also checks if file exists
+		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
+		if err != nil || !hasAccess {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Bu dosyaya erişim yetkiniz yok",
 			})
-		}
-
-		// Verify access
-		if file.UserID != userID {
-			hasAccess := false
-			for _, access := range file.AccessList {
-				if access.UserID == userID {
-					hasAccess = true
-					break
-				}
-			}
-			if !hasAccess {
-				return c.Status(403).JSON(fiber.Map{
-					"error": "Bu dosyaya erişim yetkiniz yok",
-				})
-			}
 		}
 
 		// Get conversation
@@ -423,6 +399,31 @@ func GetConversationHistory(cfg *config.Config) fiber.Handler {
 	}
 }
 
+// GetUserConversations retrieves all conversations for the current user
+func GetUserConversations(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(401).JSON(fiber.Map{
+				"error": "Yetkisiz erişim",
+			})
+		}
+
+		conversations, err := services.ConversationServiceInstance.GetUserConversations(userID)
+		if err != nil {
+			log.Printf("Failed to get user conversations: %v", err)
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Sohbet geçmişleri alınamadı",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"conversations": conversations,
+			"count":         len(conversations),
+		})
+	}
+}
+
 // ClearConversationHistory clears all messages from a conversation
 func ClearConversationHistory(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -440,18 +441,11 @@ func ClearConversationHistory(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if user has access to the file
-		file, err := services.FileServiceInstance.GetFileByID(fileID)
-		if err != nil {
-			return c.Status(404).JSON(fiber.Map{
-				"error": "Dosya bulunamadı",
-			})
-		}
-
-		// Only file owner can clear conversation
-		if file.UserID != userID {
+		// Check if user has access to the file (using proper access control)
+		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
+		if err != nil || !hasAccess {
 			return c.Status(403).JSON(fiber.Map{
-				"error": "Sadece dosya sahibi sohbet geçmişini temizleyebilir",
+				"error": "Bu dosyaya erişim yetkiniz yok",
 			})
 		}
 
@@ -467,80 +461,6 @@ func ClearConversationHistory(cfg *config.Config) fiber.Handler {
 			"message": "Sohbet geçmişi başarıyla temizlendi",
 		})
 	}
-}
-
-// performMultiVectorRetrieval performs separate retrievals for each key term
-// and merges the results. This is particularly effective for comparison queries.
-func performMultiVectorRetrieval(
-	ollamaService *services.OllamaService,
-	chromaService *services.ChromaService,
-	deduplicator *retrieval.ChunkDeduplicator,
-	keyTerms []string,
-	fileID string,
-	baseTopK int,
-) ([]services.ChunkResult, error) {
-	var allResultSets [][]retrieval.ChunkResult
-
-	// For each key term, perform a separate embedding and retrieval
-	for _, term := range keyTerms {
-		log.Printf("Retrieving chunks for term: %s", term)
-
-		// Generate embedding for the term
-		termEmbedding, err := ollamaService.GenerateEmbedding(term)
-		if err != nil {
-			log.Printf("Warning: Failed to generate embedding for term '%s': %v", term, err)
-			continue
-		}
-
-		// Retrieve chunks for this term (smaller topK per term)
-		perTermTopK := baseTopK / len(keyTerms)
-		if perTermTopK < 2 {
-			perTermTopK = 2
-		}
-
-		chunks, err := chromaService.QuerySimilar(termEmbedding, fileID, perTermTopK)
-		if err != nil {
-			log.Printf("Warning: Failed to retrieve chunks for term '%s': %v", term, err)
-			continue
-		}
-
-		// Convert services.ChunkResult to retrieval.ChunkResult
-		retrievalChunks := make([]retrieval.ChunkResult, len(chunks))
-		for i, chunk := range chunks {
-			retrievalChunks[i] = retrieval.ChunkResult{
-				ID:       chunk.ID,
-				Text:     chunk.Text,
-				Metadata: chunk.Metadata,
-				Distance: chunk.Distance,
-			}
-		}
-
-		allResultSets = append(allResultSets, retrievalChunks)
-		log.Printf("Retrieved %d chunks for term '%s'", len(chunks), term)
-	}
-
-	if len(allResultSets) == 0 {
-		return nil, fmt.Errorf("failed to retrieve chunks for any term")
-	}
-
-	// Merge and deduplicate all results
-	mergedChunks := deduplicator.RankAndMerge(allResultSets, baseTopK)
-
-	// Convert back to services.ChunkResult
-	finalChunks := make([]services.ChunkResult, len(mergedChunks))
-	for i, chunk := range mergedChunks {
-		finalChunks[i] = services.ChunkResult{
-			ID:       chunk.ID,
-			Text:     chunk.Text,
-			Metadata: chunk.Metadata,
-			Distance: chunk.Distance,
-		}
-	}
-
-	log.Printf("Multi-vector retrieval: merged %d unique chunks from %d terms",
-		len(finalChunks), len(keyTerms))
-
-	return finalChunks, nil
 }
 
 // performHybridRetrieval combines semantic and keyword search
@@ -573,25 +493,25 @@ func performHybridRetrieval(
 // Returns false for general questions that might need multiple chunks (e.g., "tell me about X and Y")
 func isSpecificTableQuery(question string, keyTerms []string) bool {
 	qLower := strings.ToLower(question)
-	
+
 	// Check for specific comparison table patterns
 	hasComparisonOf := strings.Contains(qLower, "comparison of")
 	hasCompareVs := strings.Contains(qLower, "compare") && (strings.Contains(qLower, " vs ") || strings.Contains(qLower, " vs. ") || strings.Contains(qLower, " versus "))
-	hasVsComparison := (strings.Contains(qLower, " vs ") && strings.Contains(qLower, "comparison")) || 
-	                   (strings.Contains(qLower, " vs. ") && strings.Contains(qLower, "comparison")) ||
-	                   (strings.Contains(qLower, " versus ") && strings.Contains(qLower, "comparison"))
-	
+	hasVsComparison := (strings.Contains(qLower, " vs ") && strings.Contains(qLower, "comparison")) ||
+		(strings.Contains(qLower, " vs. ") && strings.Contains(qLower, "comparison")) ||
+		(strings.Contains(qLower, " versus ") && strings.Contains(qLower, "comparison"))
+
 	// Check if query has comparison indicators with key terms
-	hasComparisonIndicators := strings.Contains(qLower, "comparison") || 
-	                           strings.Contains(qLower, " vs ") || 
-	                           strings.Contains(qLower, " vs. ") || 
-	                           strings.Contains(qLower, " versus ")
-	
+	hasComparisonIndicators := strings.Contains(qLower, "comparison") ||
+		strings.Contains(qLower, " vs ") ||
+		strings.Contains(qLower, " vs. ") ||
+		strings.Contains(qLower, " versus ")
+
 	// If it's a specific comparison pattern with key terms, it's a table query
 	if (hasComparisonOf || hasCompareVs || hasVsComparison) && hasComparisonIndicators && len(keyTerms) >= 2 {
 		return true
 	}
-	
+
 	// Exclude general questions that need multiple chunks
 	// These patterns indicate the user wants information from multiple sources/chunks
 	// Examples: "tell me about X and Y", "what is the difference between X and Y", "explain X and Y"
@@ -606,90 +526,17 @@ func isSpecificTableQuery(question string, keyTerms []string) bool {
 		"how are",
 		"what about",
 	}
-	
+
 	for _, pattern := range excludePatterns {
 		if strings.Contains(qLower, pattern) && strings.Contains(qLower, " and ") {
 			return false // General question, needs multiple chunks (X in one chunk, Y in another)
 		}
 	}
-	
+
 	// If query mentions page numbers or ranges, it's likely a multi-chunk question
 	if strings.Contains(qLower, "page") || strings.Contains(qLower, "section") || strings.Contains(qLower, "chapter") {
 		return false
 	}
-	
+
 	return false // Default: not a specific table query
-}
-
-// performQueryExpansion generates multiple query variations and retrieves for each
-func performQueryExpansion(
-	ollamaService *services.OllamaService,
-	chromaService *services.ChromaService,
-	deduplicator *retrieval.ChunkDeduplicator,
-	originalQuery string,
-	keyTerms []string,
-	fileID string,
-	topK int,
-) ([]services.ChunkResult, error) {
-	// Expand query into multiple variations
-	expandedQueries := retrieval.ExpandQueryForComparison(originalQuery, keyTerms)
-	log.Printf("Expanded query into %d variations", len(expandedQueries))
-
-	var allResultSets [][]retrieval.ChunkResult
-
-	// Retrieve for each expanded query
-	for i, expQuery := range expandedQueries {
-		// Limit to first 5 expansions to avoid too many API calls
-		if i >= 5 {
-			break
-		}
-
-		queryEmbedding, err := ollamaService.GenerateEmbedding(expQuery)
-		if err != nil {
-			log.Printf("Warning: Failed to generate embedding for expanded query '%s': %v", expQuery, err)
-			continue
-		}
-
-		chunks, err := chromaService.QuerySimilar(queryEmbedding, fileID, 3) // Smaller per-query topK
-		if err != nil {
-			log.Printf("Warning: Failed to retrieve for expanded query '%s': %v", expQuery, err)
-			continue
-		}
-
-		// Convert to retrieval.ChunkResult
-		retrievalChunks := make([]retrieval.ChunkResult, len(chunks))
-		for j, chunk := range chunks {
-			retrievalChunks[j] = retrieval.ChunkResult{
-				ID:       chunk.ID,
-				Text:     chunk.Text,
-				Metadata: chunk.Metadata,
-				Distance: chunk.Distance,
-			}
-		}
-
-		allResultSets = append(allResultSets, retrievalChunks)
-	}
-
-	if len(allResultSets) == 0 {
-		return nil, fmt.Errorf("failed to retrieve chunks for any expanded query")
-	}
-
-	// Merge and deduplicate
-	mergedChunks := deduplicator.RankAndMerge(allResultSets, topK)
-
-	// Convert back to services.ChunkResult
-	finalChunks := make([]services.ChunkResult, len(mergedChunks))
-	for i, chunk := range mergedChunks {
-		finalChunks[i] = services.ChunkResult{
-			ID:       chunk.ID,
-			Text:     chunk.Text,
-			Metadata: chunk.Metadata,
-			Distance: chunk.Distance,
-		}
-	}
-
-	log.Printf("Query expansion: merged %d unique chunks from %d queries",
-		len(finalChunks), len(allResultSets))
-
-	return finalChunks, nil
 }

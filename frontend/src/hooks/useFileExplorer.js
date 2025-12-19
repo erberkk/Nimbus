@@ -89,13 +89,29 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
           setFiles([]);
         }
       } else if (selectedMenu === 'starred') {
-        const [filesRes, foldersRes] = await Promise.all([
-          fileApi.getStarred(),
-          folderApi.getStarred()
-        ]);
+        const currentNav = getCurrentNavState();
+        const { currentFolder } = currentNav;
 
-        setFiles(filesRes?.files || []);
-        setFolders(foldersRes?.folders || []);
+        if (currentFolder) {
+          // Star'lanmış bir klasörün içindeyiz, sadece star'lanmış içeriği göster
+          const response = await folderApi.getFolderContents(currentFolder.id, true);
+          if (!response) {
+            setFolders([]);
+            setFiles([]);
+            return;
+          }
+          setFolders(response.folders || []);
+          setFiles(response.files || []);
+        } else {
+          // Root seviyede, sadece root seviyedeki star'lanmış klasörleri ve dosyaları göster
+          const [filesRes, foldersRes] = await Promise.all([
+            fileApi.getStarred(),
+            folderApi.getStarred()
+          ]);
+
+          setFiles(filesRes?.files || []);
+          setFolders(foldersRes?.folders || []);
+        }
       } else if (selectedMenu === 'trash') {
         const currentNav = getCurrentNavState();
         const { currentFolder } = currentNav;
@@ -155,14 +171,23 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
           folder_id: parentId,
         });
 
-        if (response && response.folder) {
+        if (!response) {
+          throw new Error('Klasör oluşturma yanıtı alınamadı');
+        }
+
+        if (response.folder) {
           window.toast?.success('Klasör başarıyla oluşturuldu');
           loadContents();
           return response.folder;
+        } else {
+          // Response var ama folder yok - beklenmeyen durum
+          console.error('Unexpected response structure:', response);
+          throw new Error('Klasör oluşturma yanıtı beklenmeyen formatta');
         }
       } catch (error) {
         console.error('Klasör oluşturma hatası:', error);
-        window.toast?.error('Klasör oluşturulurken hata oluştu');
+        const errorMessage = error.response?.data?.error || error.message || 'Klasör oluşturulurken hata oluştu';
+        window.toast?.error(errorMessage);
         throw error;
       }
     },
@@ -236,11 +261,23 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
   const toggleStar = useCallback(
     async (item, type) => {
       try {
+        let newStatus;
         if (type === 'folder') {
-          await folderApi.toggleStar(item.id);
+          const response = await folderApi.toggleStar(item.id);
+          newStatus = response.is_starred;
         } else {
-          await fileApi.toggleStar(item.id);
+          const response = await fileApi.toggleStar(item.id);
+          newStatus = response.is_starred;
         }
+        
+        // Show success toast
+        const itemName = type === 'folder' ? item.name : item.filename;
+        if (newStatus) {
+          window.toast?.success(`${itemName} yıldızlara eklendi`);
+        } else {
+          window.toast?.success(`${itemName} yıldızlardan çıkarıldı`);
+        }
+        
         loadContents();
       } catch (error) {
         console.error('Yıldızlama hatası:', error);

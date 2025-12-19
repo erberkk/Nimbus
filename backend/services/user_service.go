@@ -103,3 +103,22 @@ func (us *UserService) UpdateUser(userID string, updateData bson.M) error {
 
 	return err
 }
+
+// GetUserResponse - UserID'den UserResponse oluşturur (owner bilgisi için kullanılır)
+func (us *UserService) GetUserResponse(userID string) *models.UserResponse {
+	if userID == "" {
+		return nil
+	}
+
+	owner, err := us.GetUserByID(userID)
+	if err != nil || owner == nil {
+		return nil
+	}
+
+	return &models.UserResponse{
+		ID:     owner.ID.Hex(),
+		Email:  owner.Email,
+		Name:   owner.Name,
+		Avatar: owner.Avatar,
+	}
+}

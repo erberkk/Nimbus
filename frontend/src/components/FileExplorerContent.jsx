@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -55,11 +55,25 @@ const FileExplorerContent = ({
   onMove,
   onToggleStar,
   onRestore,
+  chatFile,
+  onChatFileCleared,
 }) => {
   const { t } = useTranslation();
   // Chat panel state
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+
+  // Open chat panel when chatFile prop changes
+  useEffect(() => {
+    if (chatFile) {
+      setSelectedFile(chatFile);
+      setChatPanelOpen(true);
+      // Clear the prop after opening
+      if (onChatFileCleared) {
+        onChatFileCleared();
+      }
+    }
+  }, [chatFile, onChatFileCleared]);
 
   // File info panel state
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
@@ -166,7 +180,7 @@ const FileExplorerContent = ({
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {file.filename}
+                    {file.filename || file.name || 'Dosya'}
                   </Typography>
                   <FileExtensionBadge filename={file.filename} contentType={file.content_type} />
                 </Box>
@@ -182,13 +196,16 @@ const FileExplorerContent = ({
             </Box>
           </TableCell>
           <TableCell>
-            <Tooltip title={file.user_id || 'Bilinmiyor'}>
+            <Tooltip title={file.owner?.name || file.owner?.email || file.user_id || 'Bilinmiyor'}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: colors.primary }}>
-                  {(file.user_id || 'U')[0].toUpperCase()}
+                <Avatar 
+                  sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: colors.primary }}
+                  src={file.owner?.avatar}
+                >
+                  {(file.owner?.name || file.owner?.email || file.user_id || 'U')[0].toUpperCase()}
                 </Avatar>
                 <Typography variant="body2" color="text.secondary">
-                  {file.user_id ? file.user_id.substring(0, 8) + '...' : 'Bilinmiyor'}
+                  {file.owner?.name || file.owner?.email || (file.user_id ? file.user_id.substring(0, 8) + '...' : 'Bilinmiyor')}
                 </Typography>
               </Box>
             </Tooltip>
@@ -229,6 +246,7 @@ const FileExplorerContent = ({
           anchorEl={menuAnchor}
           open={Boolean(menuAnchor)}
           onClose={() => setMenuAnchor(null)}
+          item={file}
           itemType="file"
           onInfo={() => onFileInfo(file)}
           onDownload={() => onFileDownload(file)}
@@ -239,7 +257,6 @@ const FileExplorerContent = ({
           onToggleStar={() => onToggleStar(file, 'file')}
           onRestore={() => onRestore(file, 'file')}
           onDelete={() => onFileDelete(file)}
-        // Explicitly pass isTrash based on the item's data to ensure menu renders correctly
         />
       </>
     );
@@ -293,37 +310,31 @@ const FileExplorerContent = ({
                 <FolderIcon sx={{ color: folderColor, fontSize: 28 }} />
               </Box>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {folder.name}
+                {folder.name || folder.filename || 'Klasör'}
               </Typography>
             </Box>
           </TableCell>
           <TableCell>
-            <Tooltip title={folder.user_id || 'Bilinmiyor'}>
+            <Tooltip title={folder.owner?.name || folder.owner?.email || folder.user_id || 'Bilinmiyor'}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: folderColor }}>
-                  {(folder.user_id || 'U')[0].toUpperCase()}
+                <Avatar 
+                  sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: folderColor }}
+                  src={folder.owner?.avatar}
+                >
+                  {(folder.owner?.name || folder.owner?.email || folder.user_id || 'U')[0].toUpperCase()}
                 </Avatar>
                 <Typography variant="body2" color="text.secondary">
-                  {folder.user_id ? folder.user_id.substring(0, 8) + '...' : 'Bilinmiyor'}
+                  {folder.owner?.name || folder.owner?.email || (folder.user_id ? folder.user_id.substring(0, 8) + '...' : 'Bilinmiyor')}
                 </Typography>
               </Box>
             </Tooltip>
           </TableCell>
           <TableCell>
-            <Chip
-              label={
-                folder.item_count
-                  ? t('folder.items', { count: folder.item_count })
-                  : t('folder.items_zero')
-              }
-              size="small"
-              sx={{
-                backgroundColor: `${folderColor}15`,
-                color: folderColor,
-                fontWeight: 600,
-                border: `1px solid ${folderColor}30`,
-              }}
-            />
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+              {folder.item_count
+                ? `${t('folder.items', { count: folder.item_count })} - ${formatFileSize(folder.size || 0)}`
+                : t('folder.items_zero')}
+            </Typography>
           </TableCell>
           <TableCell>
             <Tooltip title={formatDate(folder.updated_at)}>
