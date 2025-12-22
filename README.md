@@ -325,14 +325,3 @@ docker run -d \
 ```
 
 ChromaDB `http://localhost:6006` adresinde çalışacak.
-
-## 🚧 Geliştirme Notları
-
-- Proje adım adım geliştirilmekte olup, yeni özellikler eklenmektedir
-- Kod kalitesi için ESLint ve Go fmt kullanılmaktadır
-- Responsive tasarım Tailwind CSS ile sağlanmaktadır
-- RAG sistemi için ChromaDB ve Ollama servislerinin çalışıyor olması gerekir
-
-## 📝 Lisans
-
-Bu proje eğitim amaçlı geliştirilmekte olup, ticari kullanım için uygun değildir.
