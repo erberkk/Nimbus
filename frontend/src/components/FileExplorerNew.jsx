@@ -25,6 +25,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home', chatFile, onChatFil
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [itemToMove, setItemToMove] = useState(null);
   const [itemToMoveType, setItemToMoveType] = useState('file');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useImperativeHandle(ref, () => ({
     handleCreateFolder: fileExplorer.createFolder,
@@ -98,6 +99,10 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home', chatFile, onChatFil
     await fileExplorer.moveItem(item, targetFolderId, type);
   };
 
+  const handleSearchChange = (query) => {
+    setSearchQuery(query);
+  };
+
   return (
     <Box sx={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <FileExplorerHeader
@@ -109,6 +114,8 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home', chatFile, onChatFil
         onCreateFolder={dialogs.openCreateFolder}
         onFileUpload={dialogs.openFileUpload}
         onViewModeChange={uiState.setViewMode}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
       />
 
       <FileExplorerContent
@@ -131,6 +138,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home', chatFile, onChatFil
         onRestore={fileExplorer.restoreItem}
         chatFile={chatFile}
         onChatFileCleared={onChatFileCleared}
+        searchQuery={searchQuery}
       />
 
       <FileExplorerContextMenu

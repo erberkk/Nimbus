@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -57,6 +57,7 @@ const FileExplorerContent = ({
   onRestore,
   chatFile,
   onChatFileCleared,
+  searchQuery,
 }) => {
   const { t } = useTranslation();
   // Chat panel state
@@ -114,6 +115,27 @@ const FileExplorerContent = ({
     setInfoPanelOpen(false);
     setSelectedFileForInfo(null);
   };
+
+  // Filter folders and files based on search query
+  const filteredFolders = useMemo(() => {
+    if (!searchQuery || !searchQuery.trim()) {
+      return fileExplorer.folders;
+    }
+    const query = searchQuery.toLowerCase().trim();
+    return fileExplorer.folders.filter(folder =>
+      (folder.name || '').toLowerCase().includes(query)
+    );
+  }, [fileExplorer.folders, searchQuery]);
+
+  const filteredFiles = useMemo(() => {
+    if (!searchQuery || !searchQuery.trim()) {
+      return fileExplorer.files;
+    }
+    const query = searchQuery.toLowerCase().trim();
+    return fileExplorer.files.filter(file =>
+      (file.filename || file.name || '').toLowerCase().includes(query)
+    );
+  }, [fileExplorer.files, searchQuery]);
 
   // Direkt dosya yükleme fonksiyonu
   const handleDirectFileUpload = async files => {
@@ -198,7 +220,7 @@ const FileExplorerContent = ({
           <TableCell>
             <Tooltip title={file.owner?.name || file.owner?.email || file.user_id || 'Bilinmiyor'}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar 
+                <Avatar
                   sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: colors.primary }}
                   src={file.owner?.avatar}
                 >
@@ -317,7 +339,7 @@ const FileExplorerContent = ({
           <TableCell>
             <Tooltip title={folder.owner?.name || folder.owner?.email || folder.user_id || 'Bilinmiyor'}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar 
+                <Avatar
                   sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: folderColor }}
                   src={folder.owner?.avatar}
                 >
@@ -574,7 +596,7 @@ const FileExplorerContent = ({
       </Box>
 
       {/* Empty State - Always show when no content */}
-      {fileExplorer.folders.length === 0 && fileExplorer.files.length === 0 && (
+      {filteredFolders.length === 0 && filteredFiles.length === 0 && (
         <Box
           sx={{
             display: 'flex',
@@ -594,23 +616,27 @@ const FileExplorerContent = ({
           >
             <CreateNewFolderIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 1.5 }} />
             <Typography variant="h6" color="text.secondary" gutterBottom>
-              {navigation.getCurrentNavState().currentFolder
-                ? t('folder.empty')
-                : t('folder.no_items')}
+              {searchQuery && searchQuery.trim()
+                ? t('search.no_results') || 'No results found'
+                : navigation.getCurrentNavState().currentFolder
+                  ? t('folder.empty')
+                  : t('folder.no_items')}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {t('folder.empty_hint')}
+              {searchQuery && searchQuery.trim()
+                ? t('search.try_different') || 'Try a different search term'
+                : t('folder.empty_hint')}
             </Typography>
           </MotionBox>
         </Box>
       )}
 
       {/* Grid View - Only show when there's content */}
-      {fileExplorer.folders.length > 0 || fileExplorer.files.length > 0 ? (
+      {filteredFolders.length > 0 || filteredFiles.length > 0 ? (
         uiState.viewMode === 'grid' ? (
           <Box sx={{ flex: 1, overflow: 'hidden' }}>
             {/* Folders Section */}
-            {fileExplorer.folders.length > 0 && (
+            {filteredFolders.length > 0 && (
               <Box sx={{ mb: 3 }}>
                 <Typography
                   variant="subtitle2"
@@ -621,7 +647,7 @@ const FileExplorerContent = ({
                 </Typography>
                 <Grid container spacing={2}>
                   <AnimatePresence mode="wait">
-                    {fileExplorer.folders.map((folder, index) => (
+                    {filteredFolders.map((folder, index) => (
                       <Grid item xs={12} sm={6} md={4} lg={3} key={folder.id}>
                         <MotionBox
                           initial={false}
@@ -648,7 +674,7 @@ const FileExplorerContent = ({
             )}
 
             {/* Files Section */}
-            {fileExplorer.files.length > 0 && (
+            {filteredFiles.length > 0 && (
               <Box>
                 <Typography
                   variant="subtitle2"
@@ -659,7 +685,7 @@ const FileExplorerContent = ({
                 </Typography>
                 <Grid container spacing={2}>
                   <AnimatePresence mode="wait">
-                    {fileExplorer.files.map((file, index) => (
+                    {filteredFiles.map((file, index) => (
                       <Grid item xs={12} sm={6} md={4} lg={3} key={file.id}>
                         <MotionBox
                           initial={false}
@@ -777,7 +803,7 @@ const FileExplorerContent = ({
                 </TableHead>
                 <TableBody>
                   {/* Folders */}
-                  {fileExplorer.folders.map(folder => (
+                  {filteredFolders.map(folder => (
                     <FolderRow
                       key={folder.id}
                       folder={folder}
@@ -791,7 +817,7 @@ const FileExplorerContent = ({
                   ))}
 
                   {/* Files */}
-                  {fileExplorer.files.map(file => (
+                  {filteredFiles.map(file => (
                     <FileRow
                       key={file.id}
                       file={file}

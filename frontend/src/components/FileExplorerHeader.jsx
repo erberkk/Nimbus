@@ -11,6 +11,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import SearchBar from './SearchBar';
 
 const FileExplorerHeader = ({
   selectedMenu,
@@ -19,6 +20,8 @@ const FileExplorerHeader = ({
   fileExplorer,
   onBreadcrumbClick,
   onViewModeChange,
+  searchQuery,
+  onSearchChange,
 }) => {
   const { t } = useTranslation();
 
@@ -69,72 +72,98 @@ const FileExplorerHeader = ({
         <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />}>
           {['shared', 'recent', 'starred', 'trash'].includes(selectedMenu)
             ? [
+              <Link
+                key={selectedMenu}
+                component="button"
+                variant="body1"
+                onClick={() => onBreadcrumbClick(-1)}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  color: 'text.primary',
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: 500,
+                  transition: 'all 0.3s ease',
+                  padding: '4px 8px',
+                  borderRadius: 1,
+                  '&:hover': {
+                    color: 'primary.main',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                  },
+                }}
+              >
+                <HomeIcon fontSize="small" />
+                {headerTitle}
+              </Link>,
+              // Folder path için breadcrumb oluştur
+              ...navigation.getCurrentNavState().folderPath.map((folder, index) => (
                 <Link
-                  key={selectedMenu}
+                  key={`folder-${index}`}
                   component="button"
                   variant="body1"
-                  onClick={() => onBreadcrumbClick(-1)}
+                  onClick={() => onBreadcrumbClick(index)}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 0.5,
-                    color: 'text.primary',
+                    color:
+                      index === navigation.getCurrentNavState().folderPath.length - 1
+                        ? 'text.primary'
+                        : 'text.secondary',
                     textDecoration: 'none',
                     cursor: 'pointer',
                     fontSize: '0.95rem',
-                    fontWeight: 500,
-                    transition: 'all 0.3s ease',
-                    padding: '4px 8px',
-                    borderRadius: 1,
                     '&:hover': {
                       color: 'primary.main',
-                      backgroundColor: 'rgba(102, 126, 234, 0.1)',
                     },
                   }}
                 >
-                  <HomeIcon fontSize="small" />
-                  {headerTitle}
-                </Link>,
-                // Folder path için breadcrumb oluştur
-                ...navigation.getCurrentNavState().folderPath.map((folder, index) => (
-                  <Link
-                    key={`folder-${index}`}
-                    component="button"
-                    variant="body1"
-                    onClick={() => onBreadcrumbClick(index)}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.5,
-                      color:
-                        index === navigation.getCurrentNavState().folderPath.length - 1
-                          ? 'text.primary'
-                          : 'text.secondary',
-                      textDecoration: 'none',
-                      cursor: 'pointer',
-                      fontSize: '0.95rem',
-                      '&:hover': {
-                        color: 'primary.main',
-                      },
-                    }}
-                  >
-                    {folder.name}
-                  </Link>
-                )),
-              ]
+                  {folder.name}
+                </Link>
+              )),
+            ]
             : [
+              <Link
+                key="home"
+                component="button"
+                variant="body1"
+                onClick={() => onBreadcrumbClick(-1)}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  color: navigation.getCurrentNavState().currentFolder
+                    ? 'text.secondary'
+                    : 'text.primary',
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  '&:hover': {
+                    color: 'primary.main',
+                  },
+                }}
+              >
+                <HomeIcon fontSize="small" />
+                {headerTitle}
+              </Link>,
+              // Path'deki her klasör için breadcrumb oluştur
+              ...navigation.getCurrentNavState().folderPath.map((folder, index) => (
                 <Link
-                  key="home"
+                  key={`folder-${index}`}
                   component="button"
                   variant="body1"
-                  onClick={() => onBreadcrumbClick(-1)}
+                  onClick={() => onBreadcrumbClick(index)}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 0.5,
-                    color: navigation.getCurrentNavState().currentFolder
-                      ? 'text.secondary'
-                      : 'text.primary',
+                    color:
+                      index === navigation.getCurrentNavState().folderPath.length - 1
+                        ? 'text.primary'
+                        : 'text.secondary',
                     textDecoration: 'none',
                     cursor: 'pointer',
                     fontSize: '0.95rem',
@@ -143,37 +172,19 @@ const FileExplorerHeader = ({
                     },
                   }}
                 >
-                  <HomeIcon fontSize="small" />
-                  {headerTitle}
-                </Link>,
-                // Path'deki her klasör için breadcrumb oluştur
-                ...navigation.getCurrentNavState().folderPath.map((folder, index) => (
-                  <Link
-                    key={`folder-${index}`}
-                    component="button"
-                    variant="body1"
-                    onClick={() => onBreadcrumbClick(index)}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.5,
-                      color:
-                        index === navigation.getCurrentNavState().folderPath.length - 1
-                          ? 'text.primary'
-                          : 'text.secondary',
-                      textDecoration: 'none',
-                      cursor: 'pointer',
-                      fontSize: '0.95rem',
-                      '&:hover': {
-                        color: 'primary.main',
-                      },
-                    }}
-                  >
-                    {folder.name}
-                  </Link>
-                )),
-              ]}
+                  {folder.name}
+                </Link>
+              )),
+            ]}
         </Breadcrumbs>
+
+        {/* Search Bar */}
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', px: 2 }}>
+          <SearchBar
+            value={searchQuery}
+            onChange={onSearchChange}
+          />
+        </Box>
 
         {/* View Mode Toggle */}
         <Box
@@ -222,7 +233,7 @@ const FileExplorerHeader = ({
 
       {/* Error Alert */}
       {fileExplorer.error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => {}}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => { }}>
           {fileExplorer.error}
         </Alert>
       )}

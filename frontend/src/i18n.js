@@ -267,6 +267,11 @@ const resources = {
       // Create Folder
       'folder.name_placeholder': 'Belgeler, Resimler, Projeler...',
 
+      // Search
+      'search.placeholder': 'Dosya ve klasör ara...',
+      'search.no_results': 'Sonuç bulunamadı',
+      'search.try_different': 'Farklı bir arama terimi deneyin',
+
       // File Explorer Header
       'header.shared': 'Paylaşılanlarım',
       'file.delete_confirm': 'Bu dosyayı silmek istediğinizden emin misiniz?',
@@ -537,6 +542,11 @@ const resources = {
 
       // Create Folder
       'folder.name_placeholder': 'Documents, Images, Projects...',
+
+      // Search
+      'search.placeholder': 'Search files and folders...',
+      'search.no_results': 'No results found',
+      'search.try_different': 'Try a different search term',
 
       // File Explorer Header
       'header.shared': 'My Shared',
