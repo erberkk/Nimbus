@@ -12,7 +12,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Checkbox,
   IconButton,
   Paper,
   Chip,
@@ -193,9 +192,6 @@ const FileExplorerContent = ({
             },
           }}
         >
-          <TableCell padding="checkbox" onClick={e => e.stopPropagation()}>
-            <Checkbox />
-          </TableCell>
           <TableCell>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <FileTypeIcon filename={file.filename} contentType={file.content_type} size={28} />
@@ -312,9 +308,6 @@ const FileExplorerContent = ({
           }}
           onClick={() => onFolderOpen(folder)}
         >
-          <TableCell padding="checkbox">
-            <Checkbox />
-          </TableCell>
           <TableCell>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Box
@@ -732,17 +725,6 @@ const FileExplorerContent = ({
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell
-                      padding="checkbox"
-                      sx={{
-                        backgroundColor: 'background.paper',
-                        fontWeight: 600,
-                        borderBottom: '2px solid',
-                        borderColor: 'divider',
-                      }}
-                    >
-                      <Checkbox />
-                    </TableCell>
                     <TableCell
                       sx={{
                         backgroundColor: 'background.paper',
