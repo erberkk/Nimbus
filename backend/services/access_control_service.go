@@ -67,13 +67,11 @@ func (acs *AccessControlService) GetAccessibleUsers(resourceType, resourceID str
 		accessList = folder.AccessList
 	}
 
-	// Extract user IDs
 	userIDs := make([]string, 0, len(accessList))
 	for _, access := range accessList {
 		userIDs = append(userIDs, access.UserID)
 	}
 
-	// Get users
 	return UserServiceInstance.GetUsersByIDs(userIDs)
 }
 

@@ -8,7 +8,6 @@ import (
 
 // TableProcessor handles detection and restructuring of tables in text
 type TableProcessor struct {
-	// Configuration could go here
 }
 
 // NewTableProcessor creates a new table processor
@@ -29,12 +28,11 @@ func (tp *TableProcessor) Process(text string) []TextSegment {
 	lines := strings.Split(text, "\n")
 	var segments []TextSegment
 
-	// Build line positions in original text
 	linePositions := make([]int, len(lines))
 	currentPos := 0
 	for i, line := range lines {
 		linePositions[i] = currentPos
-		currentPos += len(line) + 1 // +1 for newline
+		currentPos += len(line) + 1
 	}
 
 	i := 0
@@ -43,9 +41,7 @@ func (tp *TableProcessor) Process(text string) []TextSegment {
 	for i < len(lines) {
 		line := strings.TrimSpace(lines[i])
 
-		// Check if this line is a table title
 		if tp.isTableTitle(line) {
-			// Add non-table text before table (if any)
 			tableStart := linePositions[i]
 			if tableStart > textStart {
 				nonTableText := text[textStart:tableStart]
@@ -59,17 +55,13 @@ func (tp *TableProcessor) Process(text string) []TextSegment {
 				}
 			}
 
-			// Extract and restructure table
 			tableText, nextLineIdx := tp.processTableSection(lines, i)
-			
-			// Calculate end position (approximate since we restructured)
-			// We use the position of the line after the table in the original text
+
 			tableEndPos := currentPos
 			if nextLineIdx < len(lines) {
 				tableEndPos = linePositions[nextLineIdx]
 			}
 
-			// Add table segment
 			segments = append(segments, TextSegment{
 				Text:      tableText,
 				StartChar: tableStart,
@@ -77,7 +69,6 @@ func (tp *TableProcessor) Process(text string) []TextSegment {
 				IsTable:   true,
 			})
 
-			// Update position
 			textStart = tableEndPos
 			i = nextLineIdx
 		} else {
@@ -85,7 +76,6 @@ func (tp *TableProcessor) Process(text string) []TextSegment {
 		}
 	}
 
-	// Add remaining non-table text
 	if textStart < len(text) {
 		remainingText := text[textStart:]
 		if strings.TrimSpace(remainingText) != "" {
@@ -98,7 +88,6 @@ func (tp *TableProcessor) Process(text string) []TextSegment {
 		}
 	}
 
-	// If no segments found, return entire text as one segment
 	if len(segments) == 0 {
 		segments = append(segments, TextSegment{
 			Text:      text,
@@ -115,21 +104,17 @@ func (tp *TableProcessor) Process(text string) []TextSegment {
 func (tp *TableProcessor) isTableTitle(line string) bool {
 	lower := strings.ToLower(line)
 
-	// Check for explicit table keywords (even if embedded in other text)
 	if strings.Contains(lower, "comparison") ||
 		strings.Contains(lower, "table") ||
 		strings.Contains(lower, "overview") {
-		// If it contains "# Comparison" pattern, definitely a table title
 		if strings.Contains(line, "# Comparison") || strings.Contains(line, "# comparison") {
 			return true
 		}
-		// Also check if it's a standalone comparison phrase
 		if regexp.MustCompile(`(?i)(comparison|table)\s+of\s+`).MatchString(line) {
 			return true
 		}
 	}
 
-	// Check for patterns like "X vs Y", "X-Y-Z"
 	if regexp.MustCompile(`\d+-\d+`).MatchString(line) {
 		return true
 	}
@@ -149,7 +134,6 @@ func (tp *TableProcessor) processTableSection(lines []string, startIdx int) (str
 
 	titleLine := strings.TrimSpace(lines[startIdx])
 
-	// Extract table title
 	title := titleLine
 	if idx := strings.Index(titleLine, "# Comparison"); idx >= 0 {
 		title = strings.TrimSpace(titleLine[idx+2:])
@@ -157,7 +141,6 @@ func (tp *TableProcessor) processTableSection(lines []string, startIdx int) (str
 		title = strings.TrimSpace(titleLine[idx:])
 	}
 
-	// Clean title
 	if dashIdx := strings.Index(title, " - "); dashIdx > 0 {
 		beforeDash := title[:dashIdx]
 		afterDash := title[dashIdx+3:]
@@ -173,21 +156,17 @@ func (tp *TableProcessor) processTableSection(lines []string, startIdx int) (str
 
 	i := startIdx + 1
 
-	// Determine number of columns
 	columnCount := tp.extractColumnCount(title)
 	if columnCount < 2 {
 		columnCount = tp.detectColumnCount(lines, i)
 	}
 
 	if columnCount < 2 {
-		// Not a valid table, return original line and continue
 		return lines[startIdx], startIdx + 1
 	}
 
-	// Extract column names
 	columnNames := tp.extractColumnNames(title, columnCount)
 
-	// Build structured table output
 	var tableBuilder strings.Builder
 	tableBuilder.WriteString(fmt.Sprintf("COMPARISON TABLE: %s\n\n", title))
 	tableBuilder.WriteString("This table compares: ")
@@ -199,7 +178,6 @@ func (tp *TableProcessor) processTableSection(lines []string, startIdx int) (str
 	}
 	tableBuilder.WriteString("\n\n")
 
-	// Read rows
 	rowCount := 0
 	maxRows := 50
 
@@ -210,11 +188,9 @@ func (tp *TableProcessor) processTableSection(lines []string, startIdx int) (str
 			break
 		}
 
-		// Skip placeholder headers
 		lowerLine := strings.ToLower(line)
 		if lowerLine == "feature:" || (strings.HasSuffix(lowerLine, ":") && len(line) < 20) {
 			i++
-			// Skip values
 			for j := 0; j < columnCount && i < len(lines); j++ {
 				if strings.TrimSpace(lines[i]) != "" {
 					i++

@@ -46,7 +46,6 @@ type GenerateResponse struct {
 func NewOllamaService(cfg *config.Config) *OllamaService {
 	var queryCache cache.QueryCache
 
-	// Initialize query cache if enabled
 	if cfg.EnableQueryCache {
 		ttl := time.Duration(cfg.QueryCacheTTL) * time.Minute
 		queryCache = cache.NewInMemoryQueryCache(ttl)
@@ -58,7 +57,7 @@ func NewOllamaService(cfg *config.Config) *OllamaService {
 		embedModel: cfg.OllamaEmbedModel,
 		llmModel:   cfg.OllamaLLMModel,
 		httpClient: &http.Client{
-			Timeout: 180 * time.Second, // 3 minutes for long-running operations
+			Timeout: 180 * time.Second,
 		},
 		queryCache: queryCache,
 		config:     cfg,
@@ -68,24 +67,20 @@ func NewOllamaService(cfg *config.Config) *OllamaService {
 // GenerateEmbedding generates an embedding vector for the given text using Ollama
 // Includes caching support if query cache is enabled
 func (s *OllamaService) GenerateEmbedding(text string) ([]float64, error) {
-	// Check cache if enabled
 	if s.queryCache != nil && s.config.EnableQueryCache {
 		queryKey := cache.GenerateQueryKey(text)
 
-		// Try exact cache hit
 		if cachedQuery, found := s.queryCache.Get(queryKey); found {
 			log.Printf("Cache hit for embedding (exact match)")
 			return cachedQuery.Embedding, nil
 		}
 	}
 
-	// Generate embedding from Ollama
 	embedding, err := s.generateEmbeddingFromAPI(text)
 	if err != nil {
 		return nil, err
 	}
 
-	// Cache the result if caching is enabled
 	if s.queryCache != nil && s.config.EnableQueryCache {
 		queryKey := cache.GenerateQueryKey(text)
 		cachedQuery := &cache.CachedQuery{
@@ -159,7 +154,7 @@ func (s *OllamaService) GenerateResponse(prompt string) (string, error) {
 	reqBody := GenerateRequest{
 		Model:  s.llmModel,
 		Prompt: prompt,
-		Stream: false, // Non-streaming for simplicity
+		Stream: false,
 	}
 
 	jsonData, err := json.Marshal(reqBody)

@@ -14,44 +14,22 @@ type CachedQuery struct {
 // QueryCache defines the interface for semantic query caching
 // All implementations are in-memory for optimal performance.
 type QueryCache interface {
-	// Get retrieves a cached query by key
 	Get(key string) (*CachedQuery, bool)
-
-	// Set stores a query result with TTL
 	Set(key string, value *CachedQuery, ttl time.Duration) error
-
-	// Delete removes a cached query
 	Delete(key string) error
-
-	// Clear removes all cached queries
 	Clear() error
-
-	// Stats returns cache statistics
 	Stats() CacheStats
 }
 
 // ChunkCache defines the interface for chunk popularity caching
 // Stores frequently accessed chunk embeddings in memory
 type ChunkCache interface {
-	// Get retrieves a cached chunk embedding
 	Get(chunkID string) ([]float64, bool)
-
-	// Set stores a chunk embedding
 	Set(chunkID string, embedding []float64)
-
-	// RecordAccess tracks chunk access for popularity tracking
 	RecordAccess(chunkID string)
-
-	// GetPopularChunks returns the most frequently accessed chunks
 	GetPopularChunks(limit int) []string
-
-	// Delete removes a chunk from cache
 	Delete(chunkID string)
-
-	// Clear removes all cached chunks
 	Clear()
-
-	// Stats returns cache statistics
 	Stats() CacheStats
 }
 

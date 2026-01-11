@@ -32,7 +32,6 @@ const SharePage = () => {
     }
 
     if (!isAuthenticated) {
-      // Kullanıcı giriş yapmamışsa login sayfasına yönlendir
       navigate('/login', {
         state: {
           from: `/share/${publicLink}`,

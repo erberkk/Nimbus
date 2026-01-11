@@ -102,32 +102,30 @@ const MaxFileSize = 100 * 1024 * 1024
 var BlockedExtensions = []string{
 	".exe", ".bat", ".cmd", ".com", ".pif", ".scr", ".vbs",
 	".msi", ".dll", ".so", ".dylib", ".deb", ".rpm", ".apk",
-	".jar", // Java executable
+	".jar",
 }
 
 func InitMinIO(cfg *config.Config) error {
-	// MinIO endpoint'ini environment'dan al veya default kullan
 	endpoint := cfg.MinIOEndpoint
 	if endpoint == "" {
-		endpoint = "localhost:9000" // Default MinIO endpoint
+		endpoint = "localhost:9000"
 	}
 
 	accessKey := cfg.MinIOAccessKey
 	if accessKey == "" {
-		accessKey = "minioadmin" // Default MinIO access key
+		accessKey = "minioadmin"
 	}
 
 	secretKey := cfg.MinIOSecretKey
 	if secretKey == "" {
-		secretKey = "minioadmin" // Default MinIO secret key
+		secretKey = "minioadmin"
 	}
 
 	useSSL := cfg.MinIOUseSSL
 	if !useSSL {
-		useSSL = false // Default HTTP for development
+		useSSL = false
 	}
 
-	// MinIO client oluştur
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -141,7 +139,6 @@ func InitMinIO(cfg *config.Config) error {
 		Config: cfg,
 	}
 
-	// Bucket oluştur/kontrol et
 	if err := MinioService.CreateBucketIfNotExists("user-files"); err != nil {
 		return fmt.Errorf("bucket oluşturma hatası: %v", err)
 	}
@@ -174,12 +171,10 @@ func (m *MinIOService) CreateBucketIfNotExists(bucketName string) error {
 
 // Güvenlik taraması
 func (m *MinIOService) ValidateFile(filename string, contentType string, size int64) error {
-	// Dosya boyutu kontrolü
 	if size > MaxFileSize {
 		return fmt.Errorf("dosya boyutu çok büyük: maksimum %d MB", MaxFileSize/(1024*1024))
 	}
 
-	// Tehlikeli uzantı kontrolü
 	ext := strings.ToLower(filepath.Ext(filename))
 	for _, blocked := range BlockedExtensions {
 		if ext == blocked {
@@ -187,12 +182,16 @@ func (m *MinIOService) ValidateFile(filename string, contentType string, size in
 		}
 	}
 
+	effectiveContentType := contentType
+	if contentType == "application/octet-stream" || contentType == "" {
+		effectiveContentType = m.GuessMimeTypeFromExtension(ext)
+	}
+
 	// MIME type kontrolü
 	allowed := false
 	for _, types := range AllowedMimeTypes {
 		for _, allowedType := range types {
-			// Exact match veya prefix match (text/x- gibi)
-			if contentType == allowedType || strings.HasPrefix(contentType, allowedType) {
+			if effectiveContentType == allowedType || strings.HasPrefix(effectiveContentType, allowedType) {
 				allowed = true
 				break
 			}
@@ -202,7 +201,6 @@ func (m *MinIOService) ValidateFile(filename string, contentType string, size in
 		}
 	}
 
-	// Eğer MIME type kontrolü başarısız olduysa, dosya uzantısına göre kod dosyası kontrolü yap
 	if !allowed {
 		codeExtensions := []string{".py", ".js", ".jsx", ".ts", ".tsx", ".cs", ".java", ".kt", ".kts",
 			".json", ".md", ".txt", ".xml", ".html", ".css", ".sh", ".bash", ".yaml", ".yml",
@@ -218,15 +216,106 @@ func (m *MinIOService) ValidateFile(filename string, contentType string, size in
 	}
 
 	if !allowed {
-		return fmt.Errorf("desteklenmeyen dosya türü: %s", contentType)
+		return fmt.Errorf("desteklenmeyen dosya türü: %s (uzantı: %s)", effectiveContentType, ext)
 	}
 
 	return nil
 }
 
+func (m *MinIOService) GuessMimeTypeFromExtension(ext string) string {
+	mimeTypes := map[string]string{
+		// Documents
+		".pdf":  "application/pdf",
+		".doc":  "application/msword",
+		".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		".xls":  "application/vnd.ms-excel",
+		".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		".ppt":  "application/vnd.ms-powerpoint",
+		".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		".txt":  "text/plain",
+		".csv":  "text/csv",
+		".rtf":  "application/rtf",
+		// Images
+		".jpg":  "image/jpeg",
+		".jpeg": "image/jpeg",
+		".png":  "image/png",
+		".gif":  "image/gif",
+		".webp": "image/webp",
+		".bmp":  "image/bmp",
+		".tiff": "image/tiff",
+		".svg":  "image/svg+xml",
+		// Code files
+		".py":     "text/x-python",
+		".js":     "application/javascript",
+		".jsx":    "application/javascript",
+		".ts":     "application/typescript",
+		".tsx":    "application/typescript",
+		".json":   "application/json",
+		".xml":    "application/xml",
+		".html":   "text/html",
+		".css":    "text/css",
+		".md":     "text/markdown",
+		".yaml":   "application/x-yaml",
+		".yml":    "application/x-yaml",
+		".sh":     "application/x-sh",
+		".bash":   "application/x-sh",
+		".go":     "text/x-go",
+		".rs":     "text/x-rust",
+		".java":   "text/x-java",
+		".kt":     "text/x-kotlin",
+		".kts":    "text/x-kotlin",
+		".cs":     "text/x-csharp",
+		".php":    "text/x-php",
+		".rb":     "text/x-ruby",
+		".pl":     "text/x-perl",
+		".scala":  "text/x-scala",
+		".c":      "text/x-c",
+		".cpp":    "text/x-c++",
+		".cc":     "text/x-c++",
+		".cxx":    "text/x-c++",
+		".h":      "text/x-c",
+		".hpp":    "text/x-c++",
+		".sql":    "application/x-sql",
+		".vue":    "text/plain",
+		".svelte": "text/plain",
+		".swift":  "text/plain",
+		".dart":   "text/plain",
+		".lua":    "text/plain",
+		".r":      "text/plain",
+		".m":      "text/plain",
+		".mm":     "text/plain",
+		".ps1":    "text/plain",
+		// Archives
+		".zip": "application/zip",
+		".rar": "application/x-rar-compressed",
+		".7z":  "application/x-7z-compressed",
+		".gz":  "application/gzip",
+		// Audio
+		".mp3":  "audio/mpeg",
+		".wav":  "audio/wav",
+		".flac": "audio/flac",
+		".aac":  "audio/aac",
+		".ogg":  "audio/ogg",
+		".m4a":  "audio/mp4",
+		// Video
+		".mp4":  "video/mp4",
+		".avi":  "video/x-msvideo",
+		".mov":  "video/quicktime",
+		".wmv":  "video/x-ms-wmv",
+		".webm": "video/webm",
+		".mkv":  "video/x-matroska",
+	}
+
+	extLower := strings.ToLower(ext)
+	if mimeType, ok := mimeTypes[extLower]; ok {
+		return mimeType
+	}
+
+	return "text/plain"
+}
+
 // Kullanıcı dosyası için path oluştur
 func (m *MinIOService) GetUserFilePath(userID, filename string) string {
-	// Güvenli dosya adı oluştur (sanitization)
 	safeFilename := strings.ReplaceAll(filename, "/", "_")
 	safeFilename = strings.ReplaceAll(safeFilename, "\\", "_")
 	safeFilename = strings.ReplaceAll(safeFilename, "..", "_")
@@ -238,10 +327,8 @@ func (m *MinIOService) GetUserFilePath(userID, filename string) string {
 func (m *MinIOService) GenerateUploadPresignedURL(userID, filename string, expiry time.Duration) (string, error) {
 	ctx := context.Background()
 
-	// Dosya path'i oluştur
 	objectName := m.GetUserFilePath(userID, filename)
 
-	// Presigned PUT URL oluştur
 	presignedURL, err := m.Client.PresignedPutObject(ctx, "user-files", objectName, expiry)
 	if err != nil {
 		return "", fmt.Errorf("presigned URL oluşturma hatası: %v", err)
@@ -254,16 +341,13 @@ func (m *MinIOService) GenerateUploadPresignedURL(userID, filename string, expir
 func (m *MinIOService) GenerateDownloadPresignedURL(userID, filename string, expiry time.Duration) (string, error) {
 	ctx := context.Background()
 
-	// Dosya path'i oluştur
 	objectName := m.GetUserFilePath(userID, filename)
 
-	// Dosya varlığını kontrol et
 	_, err := m.Client.StatObject(ctx, "user-files", objectName, minio.StatObjectOptions{})
 	if err != nil {
 		return "", fmt.Errorf("dosya bulunamadı: %v", err)
 	}
 
-	// Presigned GET URL oluştur
 	presignedURL, err := m.Client.PresignedGetObject(ctx, "user-files", objectName, expiry, nil)
 	if err != nil {
 		return "", fmt.Errorf("presigned URL oluşturma hatası: %v", err)
@@ -276,16 +360,13 @@ func (m *MinIOService) GenerateDownloadPresignedURL(userID, filename string, exp
 func (m *MinIOService) GenerateDownloadPresignedURLExternal(userID, filename string, expiry time.Duration, externalEndpoint string) (string, error) {
 	ctx := context.Background()
 
-	// Dosya path'i oluştur
 	objectName := m.GetUserFilePath(userID, filename)
 
-	// Dosya varlığını kontrol et
 	_, err := m.Client.StatObject(ctx, "user-files", objectName, minio.StatObjectOptions{})
 	if err != nil {
 		return "", fmt.Errorf("dosya bulunamadı: %v", err)
 	}
 
-	// Presigned GET URL oluştur
 	presignedURL, err := m.Client.PresignedGetObject(ctx, "user-files", objectName, expiry, nil)
 	if err != nil {
 		return "", fmt.Errorf("presigned URL oluşturma hatası: %v", err)
@@ -293,9 +374,7 @@ func (m *MinIOService) GenerateDownloadPresignedURLExternal(userID, filename str
 
 	urlStr := presignedURL.String()
 
-	// If external endpoint is provided, replace the MinIO endpoint
 	if externalEndpoint != "" && m.Config.MinIOEndpoint != "" {
-		// Replace internal endpoint with external endpoint
 		internalEndpoint := m.Config.MinIOEndpoint
 		if m.Config.MinIOUseSSL {
 			urlStr = strings.Replace(urlStr, "https://"+internalEndpoint, "http://"+externalEndpoint, 1)
@@ -325,7 +404,6 @@ func (m *MinIOService) GetFileInfo(userID, filename string) (*minio.ObjectInfo, 
 func (m *MinIOService) ListUserFiles(userID string) ([]minio.ObjectInfo, error) {
 	ctx := context.Background()
 
-	// User prefix ile listele
 	prefix := fmt.Sprintf("user-%s/", userID)
 
 	var files []minio.ObjectInfo

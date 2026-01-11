@@ -9,12 +9,12 @@ import (
 type QueryIntent string
 
 const (
-	IntentSummary         QueryIntent = "summary"    // Summarize the document
-	IntentTableOfContents QueryIntent = "toc"        // Table of contents / structure
-	IntentDefinition      QueryIntent = "definition" // Define a term
-	IntentSpecific        QueryIntent = "specific"   // Specific question
-	IntentComparison      QueryIntent = "comparison" // Compare concepts
-	IntentList            QueryIntent = "list"       // List items
+	IntentSummary         QueryIntent = "summary"
+	IntentTableOfContents QueryIntent = "toc"
+	IntentDefinition      QueryIntent = "definition"
+	IntentSpecific        QueryIntent = "specific"
+	IntentComparison      QueryIntent = "comparison"
+	IntentList            QueryIntent = "list"
 )
 
 // IntentClassifier classifies user queries based on heuristics
@@ -45,13 +45,13 @@ func NewIntentClassifier() *IntentClassifier {
 				"(what does|what do) .* mean",
 				"(tell me|explain) .* (definition|meaning)",
 			},
-		IntentComparison: {
-			"(compar[ieaos]*|difference|versus|vs\\.?)",  // Typo-tolerant: comparsion, comparision, etc.
-			"(how .* differ|what .* difference)",
-			"(similar|similarity) .* (between|and)",
-			"\\d+.*\\d+",  // Contains multiple numbers (e.g., "5-6-7", "wifi 5 6 7")
-			"(between|among).*(and|or)",  // "between X and Y"
-		},
+			IntentComparison: {
+				"(compar[ieaos]*|difference|versus|vs\\.?)",
+				"(how .* differ|what .* difference)",
+				"(similar|similarity) .* (between|and)",
+				"\\d+.*\\d+",
+				"(between|among).*(and|or)",
+			},
 			IntentList: {
 				"^list",
 				"what are .* (all|the)",
@@ -64,10 +64,8 @@ func NewIntentClassifier() *IntentClassifier {
 
 // Classify determines the intent of a user query
 func (ic *IntentClassifier) Classify(query string) QueryIntent {
-	// Normalize query
 	normalized := strings.ToLower(strings.TrimSpace(query))
-	
-	// Check each intent pattern
+
 	for intent, patterns := range ic.patterns {
 		for _, pattern := range patterns {
 			matched, err := regexp.MatchString(pattern, normalized)
@@ -79,8 +77,7 @@ func (ic *IntentClassifier) Classify(query string) QueryIntent {
 			}
 		}
 	}
-	
-	// Default to specific question
+
 	return IntentSpecific
 }
 
@@ -88,13 +85,10 @@ func (ic *IntentClassifier) Classify(query string) QueryIntent {
 func (ic *IntentClassifier) GetRetrievalStrategy(intent QueryIntent) RetrievalStrategy {
 	switch intent {
 	case IntentSummary, IntentTableOfContents:
-		// For summaries and TOC, we want broad coverage
 		return StrategyAdaptive
 	case IntentDefinition, IntentSpecific:
-		// For definitions and specific questions, precision matters
 		return StrategyAdaptive
 	case IntentComparison, IntentList:
-		// For comparisons and lists, we need more context
 		return StrategyAdaptive
 	default:
 		return StrategyAdaptive
@@ -105,17 +99,17 @@ func (ic *IntentClassifier) GetRetrievalStrategy(intent QueryIntent) RetrievalSt
 func (ic *IntentClassifier) GetRecommendedTopK(intent QueryIntent) int {
 	switch intent {
 	case IntentSummary:
-		return 10 // Need broad coverage for summary
+		return 10
 	case IntentTableOfContents:
-		return 8 // Need good coverage for structure
+		return 8
 	case IntentDefinition:
-		return 3 // Definitions are usually concise
+		return 3
 	case IntentSpecific:
-		return 5 // Default for specific questions
+		return 5
 	case IntentComparison:
-		return 8 // Need multiple perspectives
+		return 8
 	case IntentList:
-		return 7 // Need enough for comprehensive list
+		return 7
 	default:
 		return 5
 	}
@@ -124,8 +118,6 @@ func (ic *IntentClassifier) GetRecommendedTopK(intent QueryIntent) int {
 // ShouldBypassVectorSearch checks if the intent requires special handling
 // that bypasses normal vector search
 func (ic *IntentClassifier) ShouldBypassVectorSearch(intent QueryIntent) bool {
-	// Currently, we don't bypass vector search for any intent
-	// but this can be extended for special cases like "summarize entire document"
 	return false
 }
 
@@ -135,17 +127,15 @@ func (ic *IntentClassifier) GetSearchHints(intent QueryIntent, query string) map
 	hints["intent"] = string(intent)
 	hints["strategy"] = string(ic.GetRetrievalStrategy(intent))
 	hints["recommended_top_k"] = ic.GetRecommendedTopK(intent)
-	
-	// Extract keywords for definition intent
+
 	if intent == IntentDefinition {
-		// Extract the term being defined
 		definitionPatterns := []string{
 			`what is ([a-zA-Z0-9\s]+)`,
 			`define ([a-zA-Z0-9\s]+)`,
 			`definition of ([a-zA-Z0-9\s]+)`,
 			`meaning of ([a-zA-Z0-9\s]+)`,
 		}
-		
+
 		normalized := strings.ToLower(query)
 		for _, pattern := range definitionPatterns {
 			re := regexp.MustCompile(pattern)
@@ -158,17 +148,15 @@ func (ic *IntentClassifier) GetSearchHints(intent QueryIntent, query string) map
 			}
 		}
 	}
-	
-	// Add boost for comparison terms
+
 	if intent == IntentComparison {
 		hints["boost_comparative_chunks"] = true
 	}
-	
-	// Add boost for list markers
+
 	if intent == IntentList {
 		hints["boost_list_chunks"] = true
 	}
-	
+
 	return hints
 }
 
@@ -205,14 +193,13 @@ type IntentMetadata struct {
 // AnalyzeQuery performs full intent analysis on a query
 func (ic *IntentClassifier) AnalyzeQuery(query string) IntentMetadata {
 	intent := ic.Classify(query)
-	
+
 	return IntentMetadata{
 		Intent:          intent,
-		Confidence:      0.8, // Heuristic-based, so confidence is moderate
+		Confidence:      0.8,
 		Strategy:        ic.GetRetrievalStrategy(intent),
 		RecommendedTopK: ic.GetRecommendedTopK(intent),
 		SearchHints:     ic.GetSearchHints(intent, query),
 		Explanation:     ic.ExplainIntent(intent),
 	}
 }
-

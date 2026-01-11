@@ -50,7 +50,6 @@ func GoogleLogin(cfg *config.Config) fiber.Handler {
 			initGoogleConfig(cfg)
 		}
 
-		// Random state oluşturma
 		state, err := generateState()
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{
@@ -61,12 +60,11 @@ func GoogleLogin(cfg *config.Config) fiber.Handler {
 		c.Cookie(&fiber.Cookie{
 			Name:     "oauth_state",
 			Value:    state,
-			MaxAge:   600, // 10 dakika
+			MaxAge:   600,
 			HTTPOnly: true,
-			Secure:   false, // Development için
+			Secure:   false,
 		})
 
-		// OAuth URL'ini oluştur ve kullanıcı seçme ekranını göster
 		url := googleOauthConfig.AuthCodeURL(
 			state,
 			oauth2.AccessTypeOffline,
@@ -87,7 +85,6 @@ func GoogleCallback(cfg *config.Config) fiber.Handler {
 		code := c.Query("code")
 		state := c.Query("state")
 
-		// State kontrolü
 		cookie := c.Cookies("oauth_state")
 		if state != cookie {
 			return c.Status(400).JSON(fiber.Map{
@@ -95,7 +92,6 @@ func GoogleCallback(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Cookie'yi temizleme
 		c.Cookie(&fiber.Cookie{
 			Name:     "oauth_state",
 			Value:    "",
@@ -109,7 +105,6 @@ func GoogleCallback(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Token exchange
 		token, err := googleOauthConfig.Exchange(context.Background(), code)
 		if err != nil {
 			log.Printf("Token exchange error: %v", err)
@@ -118,7 +113,6 @@ func GoogleCallback(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Google kullanıcı bilgilerini alma
 		googleUser, err := getGoogleUserInfo(token.AccessToken)
 		if err != nil {
 			log.Printf("Google user info error: %v", err)
@@ -127,7 +121,6 @@ func GoogleCallback(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Kullanıcıyı veritabanında bul veya oluştur
 		user, err := findOrCreateUser(googleUser)
 		if err != nil {
 			log.Printf("User creation error: %v", err)
@@ -136,7 +129,6 @@ func GoogleCallback(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// JWT token oluşturma
 		jwtToken, err := generateJWT(user, cfg.JWTSecret)
 		if err != nil {
 			log.Printf("JWT generation error: %v", err)
@@ -152,7 +144,6 @@ func GoogleCallback(cfg *config.Config) fiber.Handler {
 
 func Logout() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Client-side logout için basit response
 		return c.JSON(fiber.Map{
 			"message": "Başarıyla çıkış yapıldı",
 		})
@@ -213,12 +204,10 @@ func findOrCreateUser(googleUser *GoogleUser) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Önce mevcut kullanıcıyı ara
 	var user models.User
 	err := database.UserCollection.FindOne(ctx, bson.M{"google_id": googleUser.ID}).Decode(&user)
 
 	if err == nil {
-		// Kullanıcı mevcut, güncelleme zamanını ayarla
 		user.UpdatedAt = time.Now()
 		_, err = database.UserCollection.ReplaceOne(ctx, bson.M{"google_id": googleUser.ID}, user)
 		return &user, err
@@ -228,7 +217,6 @@ func findOrCreateUser(googleUser *GoogleUser) (*models.User, error) {
 		return nil, err
 	}
 
-	// Yeni kullanıcı oluştur
 	newUser := models.User{
 		GoogleID:  googleUser.ID,
 		Email:     googleUser.Email,
@@ -247,7 +235,6 @@ func findOrCreateUser(googleUser *GoogleUser) (*models.User, error) {
 }
 
 func generateJWT(user *models.User, secret string) (string, error) {
-	// Token 24 saat geçerli olacak
 	expirationTime := time.Now().Add(24 * time.Hour)
 
 	claims := models.Claims{

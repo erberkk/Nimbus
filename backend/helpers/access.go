@@ -44,12 +44,10 @@ func CanUserAccess(userID string, resourceType string, resourceID string, requir
 			return false, err
 		}
 
-		// Check if user is the owner
 		if file.UserID == userID {
 			return requiredLevel == AccessLevelOwner || requiredLevel == AccessLevelWrite || requiredLevel == AccessLevelRead, nil
 		}
 
-		// Check access list - doğrudan erişim kontrolü
 		for _, access := range file.AccessList {
 			if access.UserID == userID {
 				if requiredLevel == AccessLevelRead && (access.AccessType == "read" || access.AccessType == "write") {
@@ -61,9 +59,6 @@ func CanUserAccess(userID string, resourceType string, resourceID string, requir
 			}
 		}
 
-		// Eğer doğrudan erişim yoksa, hiyerarşik erişim kontrolü yap
-		// Dosyanın ancestors'ını al ve üst klasörlerde erişim ara
-		// NOT: Hiyerarşik kontrol her zaman yapılmalı, çünkü kullanıcı üst klasörden erişim alabilir
 		var fullFile struct {
 			Ancestors []primitive.ObjectID `bson:"ancestors"`
 		}
@@ -72,7 +67,6 @@ func CanUserAccess(userID string, resourceType string, resourceID string, requir
 		}).Decode(&fullFile)
 
 		if err == nil && len(fullFile.Ancestors) > 0 {
-			// Üst klasörlerde erişim ara
 			folderCursor, err := database.FolderCollection.Find(context.Background(), bson.M{
 				"_id":                 bson.M{"$in": fullFile.Ancestors},
 				"access_list.user_id": userID,
@@ -122,12 +116,10 @@ func CanUserAccess(userID string, resourceType string, resourceID string, requir
 			return false, err
 		}
 
-		// Check if user is the owner
 		if folder.UserID == userID {
 			return requiredLevel == AccessLevelOwner || requiredLevel == AccessLevelWrite || requiredLevel == AccessLevelRead, nil
 		}
 
-		// Check access list - doğrudan erişim kontrolü
 		for _, access := range folder.AccessList {
 			if access.UserID == userID {
 				if requiredLevel == AccessLevelRead && (access.AccessType == "read" || access.AccessType == "write") {
@@ -139,9 +131,6 @@ func CanUserAccess(userID string, resourceType string, resourceID string, requir
 			}
 		}
 
-		// Eğer doğrudan erişim yoksa, hiyerarşik erişim kontrolü yap
-		// Klasörün ancestors'ını al ve üst klasörlerde erişim ara
-		// NOT: Hiyerarşik kontrol her zaman yapılmalı, çünkü kullanıcı üst klasörden erişim alabilir
 		var fullFolder struct {
 			Ancestors []primitive.ObjectID `bson:"ancestors"`
 		}
@@ -150,7 +139,6 @@ func CanUserAccess(userID string, resourceType string, resourceID string, requir
 		}).Decode(&fullFolder)
 
 		if err == nil && len(fullFolder.Ancestors) > 0 {
-			// Üst klasörlerde erişim ara
 			folderCursor, err := database.FolderCollection.Find(context.Background(), bson.M{
 				"_id":                 bson.M{"$in": fullFolder.Ancestors},
 				"access_list.user_id": userID,
@@ -200,13 +188,10 @@ func CheckFileAccessWithOwnerFallback(userID, fileID, fileOwnerID string, requir
 		return false, err
 	}
 
-	// If user has access, return true
 	if hasAccess {
 		return true, nil
 	}
 
-	// If user doesn't have access, check if they are the owner
-	// Owner always has full access
 	return fileOwnerID == userID, nil
 }
 
@@ -234,12 +219,10 @@ func GetUserAccessLevel(userID string, resourceType string, resourceID string) (
 			return AccessLevelNone, err
 		}
 
-		// Check if user is the owner
 		if file.UserID == userID {
 			return AccessLevelOwner, nil
 		}
 
-		// Check access list
 		for _, access := range file.AccessList {
 			if access.UserID == userID {
 				if access.AccessType == "write" {
@@ -269,12 +252,10 @@ func GetUserAccessLevel(userID string, resourceType string, resourceID string) (
 			return AccessLevelNone, err
 		}
 
-		// Check if user is the owner
 		if folder.UserID == userID {
 			return AccessLevelOwner, nil
 		}
 
-		// Check access list
 		for _, access := range folder.AccessList {
 			if access.UserID == userID {
 				if access.AccessType == "write" {

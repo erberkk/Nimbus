@@ -34,7 +34,6 @@ And some text after.
 		t.Errorf("Expected 3 segments, got %d", len(segments))
 	}
 
-	// Segment 0: Intro text
 	if segments[0].IsTable {
 		t.Errorf("Expected segment 0 to be text")
 	}
@@ -42,7 +41,6 @@ And some text after.
 		t.Errorf("Segment 0 content mismatch")
 	}
 
-	// Segment 1: Table
 	if !segments[1].IsTable {
 		t.Errorf("Expected segment 1 to be table")
 	}
@@ -53,7 +51,6 @@ And some text after.
 		t.Errorf("Table content mismatch")
 	}
 
-	// Segment 2: Outro text
 	if segments[2].IsTable {
 		t.Errorf("Expected segment 2 to be text")
 	}

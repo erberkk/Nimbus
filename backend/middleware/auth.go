@@ -19,7 +19,6 @@ func RequireAuth(secret string) fiber.Handler {
 			})
 		}
 
-		// Bearer token kontrolü
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
 			return c.Status(401).JSON(fiber.Map{
@@ -27,7 +26,6 @@ func RequireAuth(secret string) fiber.Handler {
 			})
 		}
 
-		// Token parse etme
 		token, err := jwt.ParseWithClaims(tokenString, &models.Claims{}, func(token *jwt.Token) (interface{}, error) {
 			return []byte(secret), nil
 		})
@@ -38,7 +36,6 @@ func RequireAuth(secret string) fiber.Handler {
 			})
 		}
 
-		// Claims'leri context'e ekleme
 		if claims, ok := token.Claims.(*models.Claims); ok {
 			c.Locals("user", claims)
 		}

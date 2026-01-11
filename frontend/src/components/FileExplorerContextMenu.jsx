@@ -268,7 +268,8 @@ const FileExplorerContextMenu = ({
         key="delete"
         onClick={() => {
           if (isTrashItem) {
-            onPermanentDelete(selectedItem);
+            const itemType = selectedItem.filename ? 'file' : 'folder';
+            onPermanentDelete(selectedItem, itemType);
           } else {
             selectedItem.type === 'file' ? onDeleteFile(selectedItem) : onDeleteFolder(selectedItem);
           }

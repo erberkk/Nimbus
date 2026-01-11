@@ -30,6 +30,13 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 		protected.Get("/profile", handlers.GetProfile())
 	}
 
+	// Search route (protected) - must be before file routes to avoid conflicts
+	search := api.Group("/search")
+	search.Use(middleware.RequireAuth(cfg.JWTSecret))
+	{
+		search.Get("/", handlers.SearchFilesAndFolders(cfg))
+	}
+
 	// File routes (protected)
 	files := api.Group("/files")
 	files.Use(middleware.RequireAuth(cfg.JWTSecret))
@@ -45,7 +52,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 		files.Post("/:id/move", handlers.MoveFile(cfg))
 		files.Delete("/:id", handlers.DeleteFile(cfg))
 		files.Get("/download-url", handlers.GetDownloadPresignedURL(cfg))
-		files.Get("/preview-url", handlers.GetPreviewPresignedURL(cfg)) // Supports ?file_id=xxx or ?filename=xxx
+		files.Get("/preview-url", handlers.GetPreviewPresignedURL(cfg))    // Supports ?file_id=xxx or ?filename=xxx
 		files.Get("/onlyoffice-config", handlers.GetOnlyOfficeConfig(cfg)) // OnlyOffice editor config
 		files.Get("/content", handlers.GetFileContent(cfg))                // Get file content as text (for code files)
 		files.Put("/:id/content", handlers.UpdateFileContent(cfg))         // Update file content (for code files)

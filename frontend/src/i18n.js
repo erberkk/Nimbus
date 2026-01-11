@@ -105,7 +105,7 @@ const resources = {
       confirm_delete: 'Bu dosyayı silmek istediğinizden emin misiniz?',
       delete_success: 'Dosya başarıyla silindi',
       delete_error: 'Dosya silinirken hata oluştu',
-
+      delete_permanently: 'Dosyayı Kalıcı Olarak Sil',
       // Errors
       network_error: 'Ağ hatası',
       server_error: 'Sunucu hatası',
@@ -379,7 +379,7 @@ const resources = {
       confirm_delete: 'Are you sure you want to delete this file?',
       delete_success: 'File deleted successfully',
       delete_error: 'Error deleting file',
-
+      delete_permanently: 'Delete Permanently',
       // Errors
       network_error: 'Network error',
       server_error: 'Server error',

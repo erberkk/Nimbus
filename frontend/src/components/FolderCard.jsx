@@ -16,7 +16,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import FileItemMenu from './FileItemMenu';
 
 const MotionCard = motion.create(Card);
-const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare, onMove, onToggleStar, onRestore, onMenuOpen }) => {
+const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare, onMove, onToggleStar, onRestore, onPermanentDelete, onMenuOpen, showPath = false }) => {
   const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -95,6 +95,24 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare, onMove, onToggl
           {folder.name}
         </Typography>
 
+        {showPath && folder.path && (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{
+              display: 'block',
+              mb: 0.5,
+              fontSize: '0.7rem',
+              opacity: 0.7,
+              fontStyle: 'italic',
+            }}
+            noWrap
+            title={folder.path}
+          >
+            📁 {folder.path}
+          </Typography>
+        )}
+
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Typography variant="body2" color="text.secondary">
             {folder.item_count
@@ -139,6 +157,7 @@ const FolderCard = ({ folder, onOpen, onDelete, onEdit, onShare, onMove, onToggl
         onToggleStar={onToggleStar}
         onRestore={onRestore}
         onDelete={onDelete}
+        onPermanentDelete={onPermanentDelete}
       />
     </MotionCard>
   );

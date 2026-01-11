@@ -27,6 +27,7 @@ const FileItemMenu = ({
     onToggleStar,
     onRestore,
     onDelete,
+    onPermanentDelete,
 }) => {
     const { t } = useTranslation();
 
@@ -140,7 +141,16 @@ const FileItemMenu = ({
                 </MenuItem>
             );
         }
-        if (onDelete) {
+        if (isTrash && onPermanentDelete) {
+            fileMenuItems.push(
+                <MenuItem key="delete-permanent" onClick={() => handleAction(onPermanentDelete, item, itemType)} sx={{ color: 'error.main' }}>
+                    <ListItemIcon>
+                        <DeleteIcon fontSize="small" sx={{ color: 'error.main' }} />
+                    </ListItemIcon>
+                    <ListItemText>{t('delete_permanently') || 'Delete Permanently'}</ListItemText>
+                </MenuItem>
+            );
+        } else if (onDelete && !isTrash) {
             fileMenuItems.push(
                 <MenuItem key="delete" onClick={() => handleAction(onDelete, item)} sx={{ color: 'error.main' }}>
                     <ListItemIcon>
@@ -191,7 +201,16 @@ const FileItemMenu = ({
                 </MenuItem>
             );
         }
-        if (onDelete) {
+        if (isTrash && onPermanentDelete) {
+            folderMenuItems.push(
+                <MenuItem key="delete-permanent" onClick={() => handleAction(onPermanentDelete, item, itemType)} sx={{ color: 'error.main' }}>
+                    <ListItemIcon>
+                        <DeleteIcon fontSize="small" sx={{ color: 'error.main' }} />
+                    </ListItemIcon>
+                    <ListItemText>{t('delete_permanently') || 'Delete Permanently'}</ListItemText>
+                </MenuItem>
+            );
+        } else if (onDelete && !isTrash) {
             folderMenuItems.push(
                 <MenuItem key="delete" onClick={() => handleAction(onDelete, item)} sx={{ color: 'error.main' }}>
                     <ListItemIcon>

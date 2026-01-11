@@ -11,7 +11,7 @@ import (
 type FileRouter struct {
 	indexes    map[string]*FileIndex
 	mutex      sync.RWMutex
-	maxAge     time.Duration // TTL for unused indexes
+	maxAge     time.Duration
 	lastAccess map[string]time.Time
 }
 
@@ -35,18 +35,17 @@ type ChunkEmbedding struct {
 // NewFileRouter creates a new file router with TTL-based eviction
 func NewFileRouter(maxAge time.Duration) *FileRouter {
 	if maxAge == 0 {
-		maxAge = 24 * time.Hour // Default 24 hours
+		maxAge = 24 * time.Hour
 	}
-	
+
 	router := &FileRouter{
 		indexes:    make(map[string]*FileIndex),
 		lastAccess: make(map[string]time.Time),
 		maxAge:     maxAge,
 	}
-	
-	// Start background cleanup goroutine
+
 	go router.cleanupExpired()
-	
+
 	return router
 }
 
@@ -54,7 +53,7 @@ func NewFileRouter(maxAge time.Duration) *FileRouter {
 func (fr *FileRouter) AddFileIndex(fileID string, chunks []ChunkEmbedding) {
 	fr.mutex.Lock()
 	defer fr.mutex.Unlock()
-	
+
 	now := time.Now()
 	index := &FileIndex{
 		FileID:     fileID,
@@ -63,10 +62,10 @@ func (fr *FileRouter) AddFileIndex(fileID string, chunks []ChunkEmbedding) {
 		UpdatedAt:  now,
 		ChunkCount: len(chunks),
 	}
-	
+
 	fr.indexes[fileID] = index
 	fr.lastAccess[fileID] = now
-	
+
 	log.Printf("File router: added index for file %s with %d chunks", fileID, len(chunks))
 }
 
@@ -74,13 +73,12 @@ func (fr *FileRouter) AddFileIndex(fileID string, chunks []ChunkEmbedding) {
 func (fr *FileRouter) GetFileIndex(fileID string) (*FileIndex, bool) {
 	fr.mutex.RLock()
 	defer fr.mutex.RUnlock()
-	
+
 	index, exists := fr.indexes[fileID]
 	if exists {
-		// Update access time (note: this is read-locked, so we'll update in a separate goroutine)
 		go fr.updateAccessTime(fileID)
 	}
-	
+
 	return index, exists
 }
 
@@ -88,10 +86,10 @@ func (fr *FileRouter) GetFileIndex(fileID string) (*FileIndex, bool) {
 func (fr *FileRouter) RemoveFileIndex(fileID string) {
 	fr.mutex.Lock()
 	defer fr.mutex.Unlock()
-	
+
 	delete(fr.indexes, fileID)
 	delete(fr.lastAccess, fileID)
-	
+
 	log.Printf("File router: removed index for file %s", fileID)
 }
 
@@ -102,18 +100,15 @@ func (fr *FileRouter) SearchInFile(fileID string, queryEmbedding []float64, topK
 	if !exists {
 		return []SimilarityResult{}
 	}
-	
-	// Compute similarities in parallel
+
 	similarities := fr.computeSimilaritiesParallel(queryEmbedding, index.Chunks)
-	
-	// Sort by similarity (descending)
+
 	sortedResults := fr.sortBySimilarity(similarities)
-	
-	// Return top-k
+
 	if len(sortedResults) > topK {
 		return sortedResults[:topK]
 	}
-	
+
 	return sortedResults
 }
 
@@ -121,29 +116,26 @@ func (fr *FileRouter) SearchInFile(fileID string, queryEmbedding []float64, topK
 func (fr *FileRouter) computeSimilaritiesParallel(queryEmbedding []float64, chunks []ChunkEmbedding) []SimilarityResult {
 	numChunks := len(chunks)
 	results := make([]SimilarityResult, numChunks)
-	
-	// Determine optimal number of workers (use CPU cores, capped at 8)
+
 	numWorkers := 4
 	if numChunks < numWorkers {
 		numWorkers = numChunks
 	}
-	
-	// Channel for work distribution
+
 	type workItem struct {
 		index int
 		chunk ChunkEmbedding
 	}
-	
+
 	workChan := make(chan workItem, numChunks)
 	var wg sync.WaitGroup
-	
-	// Worker function
+
 	worker := func() {
 		defer wg.Done()
 		for item := range workChan {
 			similarity := cosineSimilarity(queryEmbedding, item.chunk.Embedding)
-			distance := 1.0 - similarity // Convert to distance
-			
+			distance := 1.0 - similarity
+
 			results[item.index] = SimilarityResult{
 				ChunkID:  item.chunk.ChunkID,
 				Distance: distance,
@@ -152,29 +144,24 @@ func (fr *FileRouter) computeSimilaritiesParallel(queryEmbedding []float64, chun
 			}
 		}
 	}
-	
-	// Start workers
+
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 		go worker()
 	}
-	
-	// Distribute work
+
 	for i, chunk := range chunks {
 		workChan <- workItem{index: i, chunk: chunk}
 	}
 	close(workChan)
-	
-	// Wait for completion
+
 	wg.Wait()
-	
+
 	return results
 }
 
 // sortBySimilarity sorts results by distance (ascending = most similar first)
 func (fr *FileRouter) sortBySimilarity(results []SimilarityResult) []SimilarityResult {
-	// Simple bubble sort for small lists (efficient enough for typical chunk counts)
-	// For very large lists, could use sort.Slice, but this avoids the overhead
 	n := len(results)
 	for i := 0; i < n-1; i++ {
 		for j := 0; j < n-i-1; j++ {
@@ -191,22 +178,22 @@ func cosineSimilarity(a, b []float64) float64 {
 	if len(a) != len(b) {
 		return 0.0
 	}
-	
+
 	var dotProduct, normA, normB float64
-	
+
 	for i := range a {
 		dotProduct += a[i] * b[i]
 		normA += a[i] * a[i]
 		normB += b[i] * b[i]
 	}
-	
+
 	normA = math.Sqrt(normA)
 	normB = math.Sqrt(normB)
-	
+
 	if normA == 0 || normB == 0 {
 		return 0.0
 	}
-	
+
 	return dotProduct / (normA * normB)
 }
 
@@ -214,7 +201,7 @@ func cosineSimilarity(a, b []float64) float64 {
 func (fr *FileRouter) updateAccessTime(fileID string) {
 	fr.mutex.Lock()
 	defer fr.mutex.Unlock()
-	
+
 	fr.lastAccess[fileID] = time.Now()
 }
 
@@ -222,7 +209,7 @@ func (fr *FileRouter) updateAccessTime(fileID string) {
 func (fr *FileRouter) cleanupExpired() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		fr.performCleanup()
 	}
@@ -232,21 +219,21 @@ func (fr *FileRouter) cleanupExpired() {
 func (fr *FileRouter) performCleanup() {
 	fr.mutex.Lock()
 	defer fr.mutex.Unlock()
-	
+
 	now := time.Now()
 	expiredFiles := []string{}
-	
+
 	for fileID, lastAccess := range fr.lastAccess {
 		if now.Sub(lastAccess) > fr.maxAge {
 			expiredFiles = append(expiredFiles, fileID)
 		}
 	}
-	
+
 	for _, fileID := range expiredFiles {
 		delete(fr.indexes, fileID)
 		delete(fr.lastAccess, fileID)
 	}
-	
+
 	if len(expiredFiles) > 0 {
 		log.Printf("File router cleanup: removed %d expired indexes", len(expiredFiles))
 	}
@@ -256,12 +243,12 @@ func (fr *FileRouter) performCleanup() {
 func (fr *FileRouter) GetStats() map[string]interface{} {
 	fr.mutex.RLock()
 	defer fr.mutex.RUnlock()
-	
+
 	totalChunks := 0
 	for _, index := range fr.indexes {
 		totalChunks += index.ChunkCount
 	}
-	
+
 	return map[string]interface{}{
 		"indexed_files": len(fr.indexes),
 		"total_chunks":  totalChunks,
@@ -286,10 +273,10 @@ func (fr *FileRouter) WarmCache(fileIDs []string, chunkProvider func(string) []C
 func (fr *FileRouter) Clear() {
 	fr.mutex.Lock()
 	defer fr.mutex.Unlock()
-	
+
 	fr.indexes = make(map[string]*FileIndex)
 	fr.lastAccess = make(map[string]time.Time)
-	
+
 	log.Println("File router: cleared all indexes")
 }
 
@@ -298,9 +285,8 @@ func (fr *FileRouter) Clear() {
 func (fr *FileRouter) SyncWithChroma(fileID string, chunks []ChunkEmbedding) {
 	fr.mutex.Lock()
 	defer fr.mutex.Unlock()
-	
+
 	if index, exists := fr.indexes[fileID]; exists {
-		// Update existing index
 		index.Chunks = chunks
 		index.UpdatedAt = time.Now()
 		index.ChunkCount = len(chunks)
@@ -324,12 +310,12 @@ func (fr *FileRouter) SyncWithChroma(fileID string, chunks []ChunkEmbedding) {
 func (fr *FileRouter) GetIndexedFileIDs() []string {
 	fr.mutex.RLock()
 	defer fr.mutex.RUnlock()
-	
+
 	fileIDs := make([]string, 0, len(fr.indexes))
 	for fileID := range fr.indexes {
 		fileIDs = append(fileIDs, fileID)
 	}
-	
+
 	return fileIDs
 }
 
@@ -337,8 +323,7 @@ func (fr *FileRouter) GetIndexedFileIDs() []string {
 func (fr *FileRouter) HasIndex(fileID string) bool {
 	fr.mutex.RLock()
 	defer fr.mutex.RUnlock()
-	
+
 	_, exists := fr.indexes[fileID]
 	return exists
 }
-

@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { folderApi, fileApi } from '../services/api';
 import HomeIcon from '@mui/icons-material/Home';
 import FolderSharedIcon from '@mui/icons-material/FolderShared';
@@ -38,7 +38,7 @@ import { formatRelativeTime } from '../utils/fileTypeUtils';
 
 const MotionBox = motion.create(Box);
 
-const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu, onConversationClick }) => {
+const Sidebar = forwardRef(({ onCreateFolder, onFileUpload, onFolderUpload, onMenuChange, selectedMenu, onConversationClick }, ref) => {
   const { t } = useTranslation();
   const [selected, setSelected] = useState(selectedMenu || 'home');
   const [newMenuAnchor, setNewMenuAnchor] = useState(null);
@@ -139,6 +139,10 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu, onC
     }
   };
 
+  useImperativeHandle(ref, () => ({
+    refreshStorage: loadStorageInfo,
+  }));
+
   const handleNewMenuOpen = event => {
     setNewMenuAnchor(event.currentTarget);
   };
@@ -155,6 +159,15 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu, onC
   const handleFileUpload = () => {
     handleNewMenuClose();
     onFileUpload();
+  };
+
+  const handleFolderUpload = () => {
+    handleNewMenuClose();
+    if (onFolderUpload) {
+      onFolderUpload();
+    } else {
+      onFileUpload(); // Fallback
+    }
   };
 
   return (
@@ -242,7 +255,7 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu, onC
             </Typography>
           </MenuItem>
 
-          <MenuItem onClick={handleFileUpload} sx={{ py: 1.5, px: 2 }}>
+          <MenuItem onClick={handleFolderUpload} sx={{ py: 1.5, px: 2 }}>
             <ListItemIcon sx={{ minWidth: 36 }}>
               <FolderIcon sx={{ fontSize: 20, color: '#ea4335' }} />
             </ListItemIcon>
@@ -507,6 +520,6 @@ const Sidebar = ({ onCreateFolder, onFileUpload, onMenuChange, selectedMenu, onC
       </Box>
     </Box>
   );
-};
+});
 
 export default Sidebar;

@@ -26,18 +26,15 @@ func GeneratePublicLink() (string, error) {
 func GetAncestors(resourceID primitive.ObjectID) ([]primitive.ObjectID, error) {
 	ctx := context.Background()
 
-	// Önce bu resource'un parent'ını bul
 	var resource interface{}
 	err := database.FolderCollection.FindOne(ctx, bson.M{"_id": resourceID}).Decode(&resource)
 	if err != nil {
-		// Folder bulunamadı, file olarak ara
 		err = database.FileCollection.FindOne(ctx, bson.M{"_id": resourceID}).Decode(&resource)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// ParentID varsa ancestors'ı döndür, yoksa boş array
 	ancestors := []primitive.ObjectID{}
 	if folder, ok := resource.(models.Folder); ok {
 		ancestors = folder.Ancestors
@@ -52,10 +49,8 @@ func GetAncestors(resourceID primitive.ObjectID) ([]primitive.ObjectID, error) {
 func UpdateAncestorsRecursive(parentID primitive.ObjectID, ancestors []primitive.ObjectID) error {
 	ctx := context.Background()
 
-	// Güncellenmiş ancestors array'i oluştur (parent'ı da dahil et)
 	newAncestors := append(ancestors, parentID)
 
-	// Tüm alt klasörleri bul ve güncelle
 	folderCursor, err := database.FolderCollection.Find(ctx, bson.M{"parent_id": parentID})
 	if err != nil {
 		return err
@@ -68,7 +63,6 @@ func UpdateAncestorsRecursive(parentID primitive.ObjectID, ancestors []primitive
 			continue
 		}
 
-		// Bu klasörün ancestors'ını güncelle
 		_, err = database.FolderCollection.UpdateOne(
 			ctx,
 			bson.M{"_id": folder.ID},
@@ -81,11 +75,9 @@ func UpdateAncestorsRecursive(parentID primitive.ObjectID, ancestors []primitive
 			continue
 		}
 
-		// Bu klasörün alt öğelerini de recursive güncelle
 		UpdateAncestorsRecursive(folder.ID, newAncestors)
 	}
 
-	// Tüm alt dosyaları bul ve güncelle
 	fileCursor, err := database.FileCollection.Find(ctx, bson.M{"parent_id": parentID})
 	if err != nil {
 		return err
@@ -98,7 +90,6 @@ func UpdateAncestorsRecursive(parentID primitive.ObjectID, ancestors []primitive
 			continue
 		}
 
-		// Bu dosyanın ancestors'ını güncelle
 		database.FileCollection.UpdateOne(
 			ctx,
 			bson.M{"_id": file.ID},
@@ -140,7 +131,6 @@ func GetAllChildrenRecursive(parentID primitive.ObjectID) ([]models.Folder, []mo
 	var folders []models.Folder
 	var files []models.File
 
-	// Önce alt klasörleri bul
 	folderCursor, err := database.FolderCollection.Find(ctx, bson.M{"ancestors": parentID})
 	if err != nil {
 		return nil, nil, err
@@ -154,7 +144,6 @@ func GetAllChildrenRecursive(parentID primitive.ObjectID) ([]models.Folder, []mo
 		}
 		folders = append(folders, folder)
 
-		// Bu klasörün alt öğelerini de recursive al
 		childFolders, childFiles, err := GetAllChildrenRecursive(folder.ID)
 		if err != nil {
 			continue
@@ -163,7 +152,6 @@ func GetAllChildrenRecursive(parentID primitive.ObjectID) ([]models.Folder, []mo
 		files = append(files, childFiles...)
 	}
 
-	// Alt dosyaları bul
 	fileCursor, err := database.FileCollection.Find(ctx, bson.M{"ancestors": parentID})
 	if err != nil {
 		return nil, nil, err
@@ -185,16 +173,13 @@ func GetAllChildrenRecursive(parentID primitive.ObjectID) ([]models.Folder, []mo
 func HasHierarchicalAccess(resourceID primitive.ObjectID, userID string) (string, error) {
 	ctx := context.Background()
 
-	// Resource'un ancestors'ını al
 	ancestors, err := GetAncestors(resourceID)
 	if err != nil {
 		return "none", err
 	}
 
-	// Tüm ancestors'larda bu kullanıcının erişimini ara
 	var accessEntries []models.AccessEntry
 
-	// Folder ancestors'larında ara
 	if len(ancestors) > 0 {
 		folderCursor, err := database.FolderCollection.Find(ctx, bson.M{
 			"_id":                 bson.M{"$in": ancestors},
@@ -216,7 +201,6 @@ func HasHierarchicalAccess(resourceID primitive.ObjectID, userID string) (string
 		}
 	}
 
-	// File ancestors'larında ara (dosyanın klasör zincirinde)
 	if len(ancestors) > 0 {
 		fileCursor, err := database.FileCollection.Find(ctx, bson.M{
 			"ancestors":           bson.M{"$in": ancestors},
@@ -238,7 +222,6 @@ func HasHierarchicalAccess(resourceID primitive.ObjectID, userID string) (string
 		}
 	}
 
-	// En yüksek erişim seviyesini döndür
 	return MergeAccessLevels(accessEntries), nil
 }
 
@@ -246,14 +229,11 @@ func HasHierarchicalAccess(resourceID primitive.ObjectID, userID string) (string
 func AddUserToResourceAccess(resourceID primitive.ObjectID, userID, accessType string, grantedBy string) error {
 	ctx := context.Background()
 
-	// Önce bu resource'un türünü belirle
 	var collection interface{}
 	var update bson.M
 
-	// Folder mı kontrol et
 	err := database.FolderCollection.FindOne(ctx, bson.M{"_id": resourceID}).Decode(&collection)
 	if err == nil {
-		// Folder ise
 		update = bson.M{
 			"$push": bson.M{"access_list": models.AccessEntry{
 				UserID:     userID,
@@ -265,7 +245,6 @@ func AddUserToResourceAccess(resourceID primitive.ObjectID, userID, accessType s
 		}
 		database.FolderCollection.UpdateOne(ctx, bson.M{"_id": resourceID}, update)
 	} else {
-		// File ise
 		update = bson.M{
 			"$push": bson.M{"access_list": models.AccessEntry{
 				UserID:     userID,
@@ -285,13 +264,10 @@ func AddUserToResourceAccess(resourceID primitive.ObjectID, userID, accessType s
 func RemoveUserFromResourceAccess(resourceID primitive.ObjectID, userID string) error {
 	ctx := context.Background()
 
-	// Önce bu resource'un türünü belirle
 	var collection interface{}
 
-	// Folder mı kontrol et
 	err := database.FolderCollection.FindOne(ctx, bson.M{"_id": resourceID}).Decode(&collection)
 	if err == nil {
-		// Folder ise
 		database.FolderCollection.UpdateOne(
 			ctx,
 			bson.M{"_id": resourceID},
@@ -301,7 +277,6 @@ func RemoveUserFromResourceAccess(resourceID primitive.ObjectID, userID string) 
 			},
 		)
 	} else {
-		// File ise
 		database.FileCollection.UpdateOne(
 			ctx,
 			bson.M{"_id": resourceID},
@@ -319,16 +294,13 @@ func RemoveUserFromResourceAccess(resourceID primitive.ObjectID, userID string) 
 func PropagateAccessToChildren(parentID primitive.ObjectID, userID, accessType string, grantedBy string) error {
 	ctx := context.Background()
 
-	// Tüm alt öğeleri bul
 	childrenFolders, childrenFiles, err := GetAllChildrenRecursive(parentID)
 	if err != nil {
 		return err
 	}
 
-	// Bulk operations için array oluştur
 	var operations []mongo.WriteModel
 
-	// Tüm alt klasörleri güncelle
 	for _, folder := range childrenFolders {
 		operations = append(operations, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": folder.ID}).
@@ -345,7 +317,6 @@ func PropagateAccessToChildren(parentID primitive.ObjectID, userID, accessType s
 		)
 	}
 
-	// Tüm alt dosyaları güncelle
 	for _, file := range childrenFiles {
 		operations = append(operations, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": file.ID}).
@@ -362,7 +333,6 @@ func PropagateAccessToChildren(parentID primitive.ObjectID, userID, accessType s
 		)
 	}
 
-	// Bulk update yap
 	if len(operations) > 0 {
 		_, err = database.FolderCollection.BulkWrite(ctx, operations[:len(childrenFolders)])
 		if err != nil {
@@ -384,16 +354,13 @@ func PropagateAccessToChildren(parentID primitive.ObjectID, userID, accessType s
 func RemoveAccessFromChildren(parentID primitive.ObjectID, userID string) error {
 	ctx := context.Background()
 
-	// Tüm alt öğeleri bul
 	childrenFolders, childrenFiles, err := GetAllChildrenRecursive(parentID)
 	if err != nil {
 		return err
 	}
 
-	// Bulk operations için array oluştur
 	var operations []mongo.WriteModel
 
-	// Tüm alt klasörlerden kullanıcıyı çıkar
 	for _, folder := range childrenFolders {
 		operations = append(operations, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": folder.ID}).
@@ -404,7 +371,6 @@ func RemoveAccessFromChildren(parentID primitive.ObjectID, userID string) error 
 		)
 	}
 
-	// Tüm alt dosyalardan kullanıcıyı çıkar
 	for _, file := range childrenFiles {
 		operations = append(operations, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{"_id": file.ID}).
@@ -415,7 +381,6 @@ func RemoveAccessFromChildren(parentID primitive.ObjectID, userID string) error 
 		)
 	}
 
-	// Bulk update yap
 	if len(operations) > 0 {
 		_, err = database.FolderCollection.BulkWrite(ctx, operations[:len(childrenFolders)])
 		if err != nil {
@@ -437,16 +402,13 @@ func RemoveAccessFromChildren(parentID primitive.ObjectID, userID string) error 
 func UpdateAccessInHierarchy(resourceID primitive.ObjectID, userID, newAccessType string, grantedBy string) error {
 	ctx := context.Background()
 
-	// Tüm alt öğeleri bul
 	childrenFolders, childrenFiles, err := GetAllChildrenRecursive(resourceID)
 	if err != nil {
 		return err
 	}
 
-	// Bulk operations için array oluştur
 	var operations []mongo.WriteModel
 
-	// Tüm alt klasörlerdeki erişimi güncelle
 	for _, folder := range childrenFolders {
 		operations = append(operations, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{
@@ -464,7 +426,6 @@ func UpdateAccessInHierarchy(resourceID primitive.ObjectID, userID, newAccessTyp
 		)
 	}
 
-	// Tüm alt dosyalardaki erişimi güncelle
 	for _, file := range childrenFiles {
 		operations = append(operations, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{
@@ -482,7 +443,6 @@ func UpdateAccessInHierarchy(resourceID primitive.ObjectID, userID, newAccessTyp
 		)
 	}
 
-	// Bulk update yap
 	if len(operations) > 0 {
 		_, err = database.FolderCollection.BulkWrite(ctx, operations[:len(childrenFolders)])
 		if err != nil {

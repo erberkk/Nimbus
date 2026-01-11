@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"nimbus-backend/config"
+	"nimbus-backend/database"
 	"nimbus-backend/helpers"
 	"nimbus-backend/middleware"
 	"nimbus-backend/models"
@@ -22,6 +23,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/minio/minio-go/v7"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // Upload için presigned URL al
@@ -39,12 +41,10 @@ func GetUploadPresignedURL(cfg *config.Config) fiber.Handler {
 			return middleware.BadRequestResponse(c, "content_type parametresi gerekli")
 		}
 
-		// Güvenlik kontrolü
 		if err := services.MinioService.ValidateFile(filename, contentType, 0); err != nil {
 			return middleware.BadRequestResponse(c, err.Error())
 		}
 
-		// 1 saatlik presigned URL oluştur
 		presignedURL, err := services.MinioService.GenerateUploadPresignedURL(
 			user.UserID,
 			filename,
@@ -55,7 +55,6 @@ func GetUploadPresignedURL(cfg *config.Config) fiber.Handler {
 			return middleware.InternalServerErrorResponse(c, "Presigned URL oluşturulamadı")
 		}
 
-		// MinIO path oluştur
 		minioPath := services.MinioService.GetUserFilePath(user.UserID, filename)
 
 		return c.JSON(fiber.Map{
@@ -84,12 +83,10 @@ func CreateFile(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Content-Type fallback
 		if req.ContentType == "" {
 			req.ContentType = "application/octet-stream"
 		}
 
-		// Dosya kaydı oluştur
 		file, err := services.FileServiceInstance.CreateFileRecord(
 			userID,
 			req.Filename,
@@ -105,7 +102,6 @@ func CreateFile(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Auto-trigger processing for PDF/DOCX files
 		contentTypeLower := strings.ToLower(file.ContentType)
 		isAskable := strings.Contains(contentTypeLower, "pdf") ||
 			strings.Contains(contentTypeLower, "wordprocessingml") ||
@@ -113,7 +109,26 @@ func CreateFile(cfg *config.Config) fiber.Handler {
 
 		if isAskable && services.DocumentProcessorInstance != nil {
 			log.Printf("Auto-triggering document processing for file %s (%s)", file.ID.Hex(), file.Filename)
-			services.DocumentProcessorInstance.ProcessDocumentAsync(file.ID.Hex(), file.MinioPath, file.ContentType)
+
+			go func() {
+				ctx := context.Background()
+				reader, err := services.MinioService.Client.GetObject(ctx, "user-files", file.MinioPath, minio.GetObjectOptions{})
+				if err != nil {
+					log.Printf("Failed to download file for deduplication: %v", err)
+					services.DocumentProcessorInstance.ProcessDocumentAsync(file.ID.Hex(), file.MinioPath, file.ContentType)
+					return
+				}
+				defer reader.Close()
+
+				fileBytes, err := io.ReadAll(reader)
+				if err != nil {
+					log.Printf("Failed to read file for deduplication: %v", err)
+					services.DocumentProcessorInstance.ProcessDocumentAsync(file.ID.Hex(), file.MinioPath, file.ContentType)
+					return
+				}
+
+				services.DocumentProcessorInstance.ProcessDocumentWithDeduplication(file.ID.Hex(), file.MinioPath, file.ContentType, fileBytes)
+			}()
 		}
 
 		return c.Status(201).JSON(fiber.Map{
@@ -155,7 +170,6 @@ func ProcessDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Get file record
 		file, err := services.FileServiceInstance.GetFileByID(fileID)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
@@ -163,7 +177,6 @@ func ProcessDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if user has access to the file (using proper access control with hierarchical checks)
 		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
 		if err != nil || !hasAccess {
 			return c.Status(403).JSON(fiber.Map{
@@ -171,7 +184,6 @@ func ProcessDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if file is PDF or DOCX
 		contentTypeLower := strings.ToLower(file.ContentType)
 		isAskable := strings.Contains(contentTypeLower, "pdf") ||
 			strings.Contains(contentTypeLower, "wordprocessingml") ||
@@ -183,7 +195,6 @@ func ProcessDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if already processing or completed
 		if file.ProcessingStatus == "processing" {
 			return c.Status(409).JSON(fiber.Map{
 				"error":  "Dosya zaten işleniyor",
@@ -199,7 +210,6 @@ func ProcessDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Start async processing
 		services.DocumentProcessorInstance.ProcessDocumentAsync(fileID, file.MinioPath, file.ContentType)
 
 		return c.Status(202).JSON(fiber.Map{
@@ -219,13 +229,11 @@ func GetDownloadPresignedURL(cfg *config.Config) fiber.Handler {
 
 		fileID := c.Query("file_id")
 		if fileID == "" {
-			// Fallback: use filename if file_id not provided (for backward compatibility)
 			filename := c.Query("filename")
 			if filename == "" {
 				return middleware.BadRequestResponse(c, "file_id veya filename parametresi gerekli")
 			}
 
-			// For own files, use current user's ID
 			presignedURL, err := services.MinioService.GenerateDownloadPresignedURL(
 				userID,
 				filename,
@@ -245,7 +253,6 @@ func GetDownloadPresignedURL(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Get file from MongoDB using file_id
 		file, err := services.FileServiceInstance.GetFileByID(fileID)
 		if err != nil {
 			log.Printf("Dosya bulunamadı: %v", err)
@@ -254,7 +261,6 @@ func GetDownloadPresignedURL(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check access using helper function
 		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
 		if err != nil || !hasAccess {
 			return c.Status(403).JSON(fiber.Map{
@@ -262,7 +268,6 @@ func GetDownloadPresignedURL(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Use file owner's UserID to generate presigned URL (file is stored in owner's folder)
 		presignedURL, err := services.MinioService.GenerateDownloadPresignedURL(
 			file.UserID,
 			file.Filename,
@@ -278,7 +283,7 @@ func GetDownloadPresignedURL(cfg *config.Config) fiber.Handler {
 		return c.JSON(fiber.Map{
 			"presigned_url": presignedURL,
 			"filename":      file.Filename,
-			"expires_in":    3600, // saniye cinsinden
+			"expires_in":    3600,
 		})
 	}
 }
@@ -293,13 +298,11 @@ func GetPreviewPresignedURL(cfg *config.Config) fiber.Handler {
 
 		fileID := c.Query("file_id")
 		if fileID == "" {
-			// Fallback: use filename if file_id not provided (for backward compatibility)
 			filename := c.Query("filename")
 			if filename == "" {
 				return middleware.BadRequestResponse(c, "file_id veya filename parametresi gerekli")
 			}
 
-			// For own files, use current user's ID
 			presignedURL, err := services.MinioService.GenerateDownloadPresignedURL(
 				userID,
 				filename,
@@ -317,7 +320,6 @@ func GetPreviewPresignedURL(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Get file from MongoDB
 		file, err := services.FileServiceInstance.GetFileByID(fileID)
 		if err != nil {
 			log.Printf("Dosya bulunamadı: %v", err)
@@ -326,7 +328,6 @@ func GetPreviewPresignedURL(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check access using helper function
 		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
 		if err != nil || !hasAccess {
 			return c.Status(403).JSON(fiber.Map{
@@ -334,7 +335,6 @@ func GetPreviewPresignedURL(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Use file owner's UserID to generate presigned URL (file is stored in owner's folder)
 		presignedURL, err := services.MinioService.GenerateDownloadPresignedURL(
 			file.UserID,
 			file.Filename,
@@ -353,7 +353,6 @@ func GetPreviewPresignedURL(cfg *config.Config) fiber.Handler {
 	}
 }
 
-// Kullanıcının dosyalarını listele (MongoDB'den)
 func ListUserFiles(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		userID, err := helpers.GetCurrentUserID(c)
@@ -371,7 +370,6 @@ func ListUserFiles(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Dosya bilgilerini formatla
 		fileList := make([]models.FileResponse, 0, len(files))
 		for _, file := range files {
 			fileList = append(fileList, models.FileResponse{
@@ -422,7 +420,6 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 
 		isPermanent := c.Query("permanent") == "true"
 
-		// Dosya kaydını getir
 		file, err := services.FileServiceInstance.GetFileByID(fileID)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
@@ -430,7 +427,6 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Dosyanın sahibi mi kontrol et
 		if file.UserID != userID {
 			return c.Status(403).JSON(fiber.Map{
 				"error": "Bu dosyayı silme yetkiniz yok",
@@ -438,7 +434,6 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 		}
 
 		if isPermanent {
-			// Hard Delete
 			if err := services.FileServiceInstance.DeleteFileRecord(fileID); err != nil {
 				log.Printf("Dosya kaydı silme hatası: %v", err)
 				return c.Status(500).JSON(fiber.Map{
@@ -446,12 +441,10 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 				})
 			}
 
-			// MinIO'dan sil (opsiyonel - hata olsa bile kayıt silindi)
 			if err := services.MinioService.DeleteFile(file.MinioPath); err != nil {
 				log.Printf("MinIO'dan dosya silme hatası: %v (kayıt silindi)", err)
 			}
 
-			// Chroma'dan sil (if document was processed)
 			if file.ProcessingStatus == "completed" && services.DocumentProcessorInstance != nil {
 				chromaService := services.NewChromaService(cfg)
 				if err := chromaService.DeleteDocumentChunks(fileID); err != nil {
@@ -459,7 +452,6 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 				}
 			}
 
-			// Delete conversation history
 			if err := services.ConversationServiceInstance.DeleteConversationsByFileID(fileID); err != nil {
 				log.Printf("Sohbet geçmişi silme hatası: %v (kayıt silindi)", err)
 			}
@@ -468,7 +460,6 @@ func DeleteFile(cfg *config.Config) fiber.Handler {
 				"message": "Dosya kalıcı olarak silindi",
 			})
 		} else {
-			// Soft Delete
 			if err := services.FileServiceInstance.SoftDeleteFile(fileID); err != nil {
 				log.Printf("Dosya soft delete hatası: %v", err)
 				return c.Status(500).JSON(fiber.Map{
@@ -569,23 +560,12 @@ func ToggleFileStar(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Erişim kontrolü
 		file, err := services.FileServiceInstance.GetFileByID(fileID)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
 				"error": "Dosya bulunamadı",
 			})
 		}
-
-		// Sadece dosya sahibi veya yazma yetkisi olanlar yıldızlayabilir mi?
-		// Yıldızlama kişisel bir özelliktir. Shared dosyaları da kendim için yıldızlayabilmeliyim.
-		// Ancak şu anki yapıda IsStarred dosya modelinde, yani global. Bu bir sorun olabilir.
-		// Plan: IsStarred field on File model.
-		// Bu durumda shared dosya yıldızlandığında herkes için yıldızlanmış olur.
-		// Şimdilik sadece owner'ın yıldızlamasına izin verelim veya yazma yetkisine.
-		// İdeal olan AccessEntry'de IsStarred tutmak veya ayrı bir UserFavorites tablosu.
-		// Ama modele ekledik, o yüzden model üzerinden gidelim.
-		// Şimdilik sadece owner değiştirebilsin.
 
 		if file.UserID != userID {
 			return c.Status(403).JSON(fiber.Map{
@@ -995,7 +975,6 @@ func OnlyOfficeCallback(cfg *config.Config) fiber.Handler {
 				return c.JSON(fiber.Map{"error": 0})
 			}
 
-			// Update file metadata (size, updated_at)
 			updates := map[string]interface{}{
 				"size": int64(len(fileContent)),
 			}
@@ -1246,5 +1225,155 @@ func UpdateFileContent(cfg *config.Config) fiber.Handler {
 			"message": "Dosya başarıyla güncellendi",
 			"size":    len(fileContent),
 		})
+	}
+}
+
+// SearchFilesAndFolders - Kullanıcının tüm dosya ve klasörlerinde arama yap
+func SearchFilesAndFolders(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, err := helpers.GetCurrentUserID(c)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		query := c.Query("q")
+		if query == "" || len(query) < 3 {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Arama terimi en az 3 karakter olmalıdır",
+			})
+		}
+
+		searchResults := fiber.Map{
+			"files":   []fiber.Map{},
+			"folders": []fiber.Map{},
+		}
+
+		ctx := context.Background()
+
+		fileFilter := bson.M{
+			"user_id":    userID,
+			"deleted_at": nil,
+			"$or": []bson.M{
+				{"filename": bson.M{"$regex": query, "$options": "i"}},
+			},
+		}
+
+		fileCursor, err := database.FileCollection.Find(ctx, fileFilter)
+		if err == nil {
+			defer fileCursor.Close(ctx)
+			var fileResults []fiber.Map
+
+			for fileCursor.Next(ctx) {
+				var file models.File
+				if err := fileCursor.Decode(&file); err == nil {
+					pathStr := ""
+					if len(file.Ancestors) > 0 {
+						var ancestorNames []string
+						for _, ancestorID := range file.Ancestors {
+							var folder models.Folder
+							err := database.FolderCollection.FindOne(ctx, bson.M{"_id": ancestorID}).Decode(&folder)
+							if err == nil {
+								ancestorNames = append(ancestorNames, folder.Name)
+							}
+						}
+						if len(ancestorNames) > 0 {
+							pathStr = strings.Join(ancestorNames, " / ")
+						}
+					}
+
+					var fileParentIDStr *string
+					if file.ParentID != nil {
+						parentIDHex := file.ParentID.Hex()
+						fileParentIDStr = &parentIDHex
+					}
+
+					fileResults = append(fileResults, fiber.Map{
+						"id":                file.ID.Hex(),
+						"filename":          file.Filename,
+						"size":              file.Size,
+						"content_type":      file.ContentType,
+						"parent_id":         fileParentIDStr,
+						"path":              pathStr,
+						"is_starred":        file.IsStarred,
+						"processing_status": file.ProcessingStatus,
+						"created_at":        file.CreatedAt,
+						"updated_at":        file.UpdatedAt,
+						"type":              "file",
+					})
+				}
+			}
+			searchResults["files"] = fileResults
+		}
+
+		folderFilter := bson.M{
+			"user_id":    userID,
+			"deleted_at": nil,
+			"$or": []bson.M{
+				{"name": bson.M{"$regex": query, "$options": "i"}},
+			},
+		}
+
+		folderCursor, err := database.FolderCollection.Find(ctx, folderFilter)
+		if err == nil {
+			defer folderCursor.Close(ctx)
+			var folderResults []fiber.Map
+
+			for folderCursor.Next(ctx) {
+				var folder models.Folder
+				if err := folderCursor.Decode(&folder); err == nil {
+					pathStr := ""
+					if len(folder.Ancestors) > 0 {
+						var ancestorNames []string
+						for _, ancestorID := range folder.Ancestors {
+							var parentFolder models.Folder
+							err := database.FolderCollection.FindOne(ctx, bson.M{"_id": ancestorID}).Decode(&parentFolder)
+							if err == nil {
+								ancestorNames = append(ancestorNames, parentFolder.Name)
+							}
+						}
+						if len(ancestorNames) > 0 {
+							pathStr = strings.Join(ancestorNames, " / ")
+						}
+					}
+
+					itemCount, err := services.FolderServiceInstance.GetFolderItemCount(folder.ID.Hex())
+					if err != nil {
+						log.Printf("Klasör item count hesaplama hatası: %v", err)
+						itemCount = 0
+					}
+
+					var parentIDStr *string
+					if folder.ParentID != nil {
+						parentIDHex := folder.ParentID.Hex()
+						parentIDStr = &parentIDHex
+					}
+
+					var ancestorsStr []string
+					for _, ancestorID := range folder.Ancestors {
+						ancestorsStr = append(ancestorsStr, ancestorID.Hex())
+					}
+
+					folderResults = append(folderResults, fiber.Map{
+						"id":         folder.ID.Hex(),
+						"name":       folder.Name,
+						"color":      folder.Color,
+						"parent_id":  parentIDStr,
+						"folder_id":  folder.FolderID,
+						"ancestors":  ancestorsStr,
+						"path":       pathStr,
+						"is_starred": folder.IsStarred,
+						"item_count": int(itemCount),
+						"created_at": folder.CreatedAt,
+						"updated_at": folder.UpdatedAt,
+						"type":       "folder",
+					})
+				}
+			}
+			searchResults["folders"] = folderResults
+		}
+
+		return c.JSON(searchResults)
 	}
 }

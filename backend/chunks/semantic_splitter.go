@@ -7,21 +7,21 @@ import (
 
 // ChunkerConfig defines configuration for semantic text chunking
 type ChunkerConfig struct {
-	TargetTokens       int     // Target chunk size in tokens (default 1000)
-	OverlapPercent     float64 // Overlap percentage (default 0.15 = 15%)
-	CharsPerToken      int     // Approximate characters per token (default 4)
-	MaxChunkSize       int     // Maximum chunk size in characters (0 = no limit)
-	MinChunkSize       int     // Minimum chunk size in characters (default 100)
-	PreserveParagraphs bool    // Try to preserve paragraph boundaries (default true)
+	TargetTokens       int
+	OverlapPercent     float64
+	CharsPerToken      int
+	MaxChunkSize       int
+	MinChunkSize       int
+	PreserveParagraphs bool
 }
 
 // Chunk represents a text chunk with metadata
 type Chunk struct {
-	Index     int                    // Chunk index
-	Text      string                 // Chunk text
-	Metadata  map[string]interface{} // Optional metadata
-	StartChar int                    // Start position in original text
-	EndChar   int                    // End position in original text
+	Index     int
+	Text      string
+	Metadata  map[string]interface{}
+	StartChar int
+	EndChar   int
 }
 
 // DefaultChunkerConfig returns default configuration
@@ -30,7 +30,7 @@ func DefaultChunkerConfig() ChunkerConfig {
 		TargetTokens:       1000,
 		OverlapPercent:     0.15,
 		CharsPerToken:      4,
-		MaxChunkSize:       0, // No limit
+		MaxChunkSize:       0,
 		MinChunkSize:       100,
 		PreserveParagraphs: true,
 	}
@@ -53,7 +53,7 @@ func NewSemanticTextSplitter(config ChunkerConfig) *SemanticTextSplitter {
 		config.OverlapPercent = 0
 	}
 	if config.OverlapPercent > 0.5 {
-		config.OverlapPercent = 0.5 // Cap at 50% overlap
+		config.OverlapPercent = 0.5
 	}
 	if config.MinChunkSize <= 0 {
 		config.MinChunkSize = 100
@@ -71,7 +71,6 @@ func (s *SemanticTextSplitter) SplitSegments(segments []TextSegment) []Chunk {
 
 	for _, segment := range segments {
 		if segment.IsTable {
-			// Tables get their own chunk - no splitting
 			allChunks = append(allChunks, Chunk{
 				Index:     chunkIndex,
 				Text:      segment.Text,
@@ -81,7 +80,6 @@ func (s *SemanticTextSplitter) SplitSegments(segments []TextSegment) []Chunk {
 			})
 			chunkIndex++
 		} else {
-			// Non-table text: split normally
 			chunks := s.splitTextSegment(segment.Text, segment.StartChar)
 			for i := range chunks {
 				chunks[i].Index = chunkIndex
@@ -96,7 +94,6 @@ func (s *SemanticTextSplitter) SplitSegments(segments []TextSegment) []Chunk {
 
 // Split splits text into semantic chunks (Legacy support, assumes no tables)
 func (s *SemanticTextSplitter) Split(text string) []Chunk {
-	// Treat as single text segment
 	return s.SplitSegments([]TextSegment{{
 		Text:      text,
 		StartChar: 0,
@@ -110,7 +107,6 @@ func (s *SemanticTextSplitter) splitTextSegment(text string, baseOffset int) []C
 	targetChars := s.config.TargetTokens * s.config.CharsPerToken
 	overlapChars := int(float64(targetChars) * s.config.OverlapPercent)
 
-	// Split into semantic units (paragraphs, then sentences)
 	var units []textUnit
 	if s.config.PreserveParagraphs {
 		units = s.splitIntoParagraphs(text)
@@ -124,26 +120,22 @@ func (s *SemanticTextSplitter) splitTextSegment(text string, baseOffset int) []C
 	var currentStart int
 
 	for i, unit := range units {
-		// Calculate potential length if we add this unit
 		potentialLength := currentChunk.Len() + len(unit.text)
 
-		// Check if we should start a new chunk
 		shouldSplit := false
 		if potentialLength > targetChars && currentChunk.Len() > 0 {
 			shouldSplit = true
 		}
 
-		// Also split if we exceed max chunk size (if configured)
 		if s.config.MaxChunkSize > 0 && potentialLength > s.config.MaxChunkSize && currentChunk.Len() > 0 {
 			shouldSplit = true
 		}
 
 		if shouldSplit {
-			// Create chunk from current content
 			chunkText := strings.TrimSpace(currentChunk.String())
 			if len(chunkText) >= s.config.MinChunkSize {
 				chunks = append(chunks, Chunk{
-					Index:     0, // Will be set by caller
+					Index:     0,
 					Text:      chunkText,
 					StartChar: baseOffset + currentStart,
 					EndChar:   baseOffset + currentStart + len(chunkText),
@@ -151,11 +143,9 @@ func (s *SemanticTextSplitter) splitTextSegment(text string, baseOffset int) []C
 				})
 			}
 
-			// Start new chunk with overlap
 			currentChunk.Reset()
 			currentUnits = []textUnit{}
 
-			// Add overlap from previous chunk
 			overlapSize := 0
 			overlapUnits := []textUnit{}
 			for j := len(currentUnits) - 1; j >= 0 && overlapSize < overlapChars; j-- {
@@ -163,7 +153,6 @@ func (s *SemanticTextSplitter) splitTextSegment(text string, baseOffset int) []C
 				overlapUnits = append([]textUnit{currentUnits[j]}, overlapUnits...)
 			}
 
-			// Rebuild chunk with overlap
 			for _, u := range overlapUnits {
 				currentChunk.WriteString(u.text)
 				currentChunk.WriteString(" ")
@@ -172,7 +161,6 @@ func (s *SemanticTextSplitter) splitTextSegment(text string, baseOffset int) []C
 			currentStart = units[i].start
 		}
 
-		// Add current unit
 		if i > 0 && currentChunk.Len() > 0 {
 			currentChunk.WriteString(" ")
 		}
@@ -184,7 +172,6 @@ func (s *SemanticTextSplitter) splitTextSegment(text string, baseOffset int) []C
 		}
 	}
 
-	// Add final chunk
 	if currentChunk.Len() > 0 {
 		chunkText := strings.TrimSpace(currentChunk.String())
 		if len(chunkText) >= s.config.MinChunkSize {
@@ -201,8 +188,6 @@ func (s *SemanticTextSplitter) splitTextSegment(text string, baseOffset int) []C
 	return chunks
 }
 
-
-
 // textUnit represents a semantic unit of text (sentence or paragraph)
 type textUnit struct {
 	text  string
@@ -212,7 +197,6 @@ type textUnit struct {
 
 // splitIntoParagraphs splits text into paragraphs
 func (s *SemanticTextSplitter) splitIntoParagraphs(text string) []textUnit {
-	// Split by double newlines or more
 	paragraphRegex := regexp.MustCompile(`\n\s*\n+`)
 	parts := paragraphRegex.Split(text, -1)
 
@@ -225,7 +209,6 @@ func (s *SemanticTextSplitter) splitIntoParagraphs(text string) []textUnit {
 			continue
 		}
 
-		// Find actual position in original text
 		idx := strings.Index(text[currentPos:], trimmed)
 		if idx >= 0 {
 			start := currentPos + idx
@@ -238,7 +221,6 @@ func (s *SemanticTextSplitter) splitIntoParagraphs(text string) []textUnit {
 		}
 	}
 
-	// If no paragraphs found or too few, fallback to sentences
 	if len(units) < 2 {
 		return s.splitIntoSentences(text)
 	}
@@ -258,17 +240,8 @@ func (s *SemanticTextSplitter) splitIntoSentences(text string) []textUnit {
 	matches := sentenceRegex.FindAllStringIndex(text, -1)
 
 	for _, match := range matches {
-		// match[0] is start of punctuation, match[1] is end of whitespace
-		
-		// Check if the character AFTER the match is an uppercase letter
-		// This simulates the lookahead (?=[A-Z])
 		isSentenceEnd := false
 		if match[1] < len(text) {
-			// We need to decode the rune to check if it's uppercase
-			// But for simple ASCII check (which [A-Z] implies), we can just check byte range
-			// or use unicode package if we want full support.
-			// Let's use a simple check for now to avoid re-importing unicode if possible,
-			// BUT we previously removed unicode. Let's re-add it to be safe and correct.
 			nextChar := text[match[1]]
 			if nextChar >= 'A' && nextChar <= 'Z' {
 				isSentenceEnd = true
@@ -277,8 +250,6 @@ func (s *SemanticTextSplitter) splitIntoSentences(text string) []textUnit {
 
 		if isSentenceEnd {
 			sentenceEnd := match[1]
-			// We include the punctuation and whitespace in the sentence for now, 
-			// but TrimSpace will clean it up
 			sentence := strings.TrimSpace(text[lastEnd:sentenceEnd])
 			if len(sentence) > 0 {
 				units = append(units, textUnit{
@@ -291,7 +262,6 @@ func (s *SemanticTextSplitter) splitIntoSentences(text string) []textUnit {
 		}
 	}
 
-	// Add final sentence
 	if lastEnd < len(text) {
 		sentence := strings.TrimSpace(text[lastEnd:])
 		if len(sentence) > 0 {
@@ -303,10 +273,9 @@ func (s *SemanticTextSplitter) splitIntoSentences(text string) []textUnit {
 		}
 	}
 
-	// Fallback: if no sentence boundaries found, split by length
 	if len(units) == 0 {
 		words := strings.Fields(text)
-		targetWords := 50 // Approximately 50 words per unit
+		targetWords := 50
 
 		for i := 0; i < len(words); i += targetWords {
 			end := i + targetWords
@@ -316,7 +285,7 @@ func (s *SemanticTextSplitter) splitIntoSentences(text string) []textUnit {
 			sentence := strings.Join(words[i:end], " ")
 			units = append(units, textUnit{
 				text:  sentence,
-				start: 0, // Position tracking not accurate for this fallback
+				start: 0,
 				end:   0,
 			})
 		}
@@ -329,10 +298,7 @@ func (s *SemanticTextSplitter) splitIntoSentences(text string) []textUnit {
 func (s *SemanticTextSplitter) extractChunkMetadata(text string) map[string]interface{} {
 	metadata := make(map[string]interface{})
 
-	// Estimate tokens only (useful for context window)
 	metadata["estimated_tokens"] = len(text) / s.config.CharsPerToken
 
 	return metadata
 }
-
-

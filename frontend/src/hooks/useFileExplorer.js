@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { folderApi, fileApi, shareApi, api } from '../services/api';
 
 /**
@@ -11,9 +11,11 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadContents = useCallback(async () => {
+  const loadContents = useCallback(async (silent = false) => {
     try {
+      if (!silent) {
       setLoading(true);
+      }
       setError('');
 
       const currentNav = getCurrentNavState();
@@ -154,9 +156,13 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
     } catch (err) {
       console.error('İçerik yükleme hatası:', err);
       setError('İçerik yüklenirken hata oluştu');
+      if (!silent) {
       window.toast?.error('İçerik yüklenirken hata oluştu');
+      }
     } finally {
+      if (!silent) {
       setLoading(false);
+      }
     }
   }, [selectedMenu, getCurrentNavState]);
 
@@ -334,6 +340,58 @@ export const useFileExplorer = (selectedMenu, getCurrentNavState) => {
     },
     [loadContents]
   );
+
+  // Processing status polling - PDF/Word dosyalarının işleme durumunu kontrol et
+  const pollingIntervalRef = useRef(null);
+  const isPollingRef = useRef(false);
+  const processingFilesCountRef = useRef(0);
+
+  useEffect(() => {
+    // Processing durumundaki dosyaları tespit et
+    const processingFiles = files.filter(
+      file => file.processing_status === 'processing' || file.processing_status === 'pending'
+    );
+    const processingCount = processingFiles.length;
+
+    // Processing dosya sayısı değiştiyse polling'i güncelle
+    if (processingCount !== processingFilesCountRef.current) {
+      processingFilesCountRef.current = processingCount;
+
+      // Eğer processing durumunda dosya varsa ve polling çalışmıyorsa başlat
+      if (processingCount > 0 && !isPollingRef.current) {
+        isPollingRef.current = true;
+
+        pollingIntervalRef.current = setInterval(async () => {
+          try {
+            // İçeriği sessizce yenile (loading state gösterme, toast gösterme)
+            await loadContents(true);
+          } catch (error) {
+            console.error('Processing status polling hatası:', error);
+            // Polling hatası olsa bile devam et
+          }
+        }, 3000); // Her 3 saniyede bir kontrol et
+      }
+
+      // Processing dosya kalmadıysa polling'i durdur
+      if (processingCount === 0 && isPollingRef.current) {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        isPollingRef.current = false;
+      }
+    }
+
+    // Cleanup: Component unmount olduğunda polling'i durdur
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      isPollingRef.current = false;
+      processingFilesCountRef.current = 0;
+    };
+  }, [files, loadContents]);
 
   return {
     folders,

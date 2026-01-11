@@ -391,3 +391,11 @@ export const userApi = {
     return api.get(`/users/search?q=${encodeURIComponent(query)}`);
   },
 };
+
+// Search API
+export const searchApi = {
+  // Global search for files and folders
+  search: query => {
+    return api.get(`/search/?q=${encodeURIComponent(query)}`);
+  },
+};

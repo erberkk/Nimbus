@@ -34,13 +34,12 @@ func GetResourceShares() fiber.Handler {
 			})
 		}
 
-		// Check if resource exists and user has access (owner or in access_list)
 		var file models.File
 		err = database.FileCollection.FindOne(context.Background(), bson.M{
 			"_id": resourceOID,
 			"$or": []bson.M{
-				{"user_id": userID},             // Owner
-				{"access_list.user_id": userID}, // Has access
+				{"user_id": userID},
+				{"access_list.user_id": userID},
 			},
 		}).Decode(&file)
 
@@ -49,8 +48,8 @@ func GetResourceShares() fiber.Handler {
 			err = database.FolderCollection.FindOne(context.Background(), bson.M{
 				"_id": resourceOID,
 				"$or": []bson.M{
-					{"user_id": userID},             // Owner
-					{"access_list.user_id": userID}, // Has access
+					{"user_id": userID},
+					{"access_list.user_id": userID},
 				},
 			}).Decode(&folder)
 			if err != nil {
@@ -59,7 +58,6 @@ func GetResourceShares() fiber.Handler {
 				})
 			}
 
-			// For folders, return access list info
 			users, err := services.AccessControlServiceInstance.GetAccessibleUsers("folder", resourceID)
 			if err != nil {
 				log.Printf("Error getting accessible users: %v", err)
@@ -85,7 +83,6 @@ func GetResourceShares() fiber.Handler {
 			})
 		}
 
-		// For files, return access list info
 		users, err := services.AccessControlServiceInstance.GetAccessibleUsers("file", resourceID)
 		if err != nil {
 			log.Printf("Error getting accessible users: %v", err)
@@ -114,7 +111,6 @@ func GetResourceShares() fiber.Handler {
 
 // getRecursiveItemCount - Recursively count all accessible items in a folder
 func getRecursiveItemCount(userID string, folderID string) (int64, error) {
-	// Get direct subfolders and files
 	subFolders, err := services.FolderServiceInstance.GetSubFolders(folderID)
 	if err != nil {
 		return 0, err
@@ -127,20 +123,18 @@ func getRecursiveItemCount(userID string, folderID string) (int64, error) {
 
 	count := int64(0)
 
-	// Count accessible files
 	for _, file := range files {
 		if canAccess, _ := helpers.CanUserAccess(userID, "file", file.ID.Hex(), helpers.AccessLevelRead); canAccess {
 			count++
 		}
 	}
 
-	// Count accessible subfolders and their contents recursively
 	for _, subFolder := range subFolders {
 		if canAccess, _ := helpers.CanUserAccess(userID, "folder", subFolder.ID.Hex(), helpers.AccessLevelRead); canAccess {
-			count++ // Count the folder itself
+			count++
 			subCount, err := getRecursiveItemCount(userID, subFolder.ID.Hex())
 			if err == nil {
-				count += subCount // Add its contents
+				count += subCount
 			}
 		}
 	}
@@ -159,7 +153,6 @@ func GetSharedWithMe() fiber.Handler {
 
 		var sharedItems []fiber.Map
 
-		// Get files shared with this user (from access_list)
 		fileCursor, err := database.FileCollection.Find(context.Background(), bson.M{
 			"access_list.user_id": userID,
 		})
@@ -198,7 +191,6 @@ func GetSharedWithMe() fiber.Handler {
 			}
 		}
 
-		// Get folders shared with this user (from access_list)
 		folderCursor, err := database.FolderCollection.Find(context.Background(), bson.M{
 			"access_list.user_id": userID,
 		})
@@ -207,7 +199,6 @@ func GetSharedWithMe() fiber.Handler {
 			for folderCursor.Next(context.Background()) {
 				var folder models.Folder
 				if err := folderCursor.Decode(&folder); err == nil {
-					// Calculate recursive item count for the shared folder
 					count, err := getRecursiveItemCount(userID, folder.ID.Hex())
 					if err != nil {
 						log.Printf("Recursive item count hesaplama hatası: %v", err)
@@ -255,7 +246,6 @@ func GetSharedFolderContents() fiber.Handler {
 			})
 		}
 
-		// Klasör bilgisini getir ve erişim kontrolü yap
 		folder, err := services.FolderServiceInstance.GetFolderByID(folderID)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
@@ -263,7 +253,6 @@ func GetSharedFolderContents() fiber.Handler {
 			})
 		}
 
-		// Kullanıcının bu klasöre erişimi var mı kontrol et (owner veya access list)
 		canAccess, err := helpers.CanUserAccess(userID, "folder", folderID, helpers.AccessLevelRead)
 		if err != nil || !canAccess {
 			return c.Status(403).JSON(fiber.Map{
@@ -271,7 +260,6 @@ func GetSharedFolderContents() fiber.Handler {
 			})
 		}
 
-		// Klasördeki alt klasörleri getir
 		subFolders, err := services.FolderServiceInstance.GetSubFolders(folderID)
 		if err != nil {
 			log.Printf("Alt klasörleri alma hatası: %v", err)
@@ -280,15 +268,12 @@ func GetSharedFolderContents() fiber.Handler {
 			})
 		}
 
-		// Sadece erişimi olan alt klasörleri filtrele ve erişim bilgilerini ekle
 		accessibleSubFolders := make([]fiber.Map, 0)
 		for _, subFolder := range subFolders {
 			canAccessSub, err := helpers.CanUserAccess(userID, "folder", subFolder.ID.Hex(), helpers.AccessLevelRead)
 			if err == nil && canAccessSub {
-				// Alt klasör için erişim bilgilerini al
 				accessType := getAccessTypeFromList(subFolder.AccessList, userID)
 
-				// Calculate real count for this accessible subfolder
 				count, err := services.FolderServiceInstance.GetFolderItemCount(subFolder.ID.Hex())
 				if err != nil {
 					log.Printf("Subfolder item count hesaplama hatası: %v", err)
@@ -312,7 +297,6 @@ func GetSharedFolderContents() fiber.Handler {
 			}
 		}
 
-		// Klasördeki dosyaları getir
 		files, err := services.FolderServiceInstance.GetFolderFiles(folderID)
 		if err != nil {
 			log.Printf("Klasör dosyaları alma hatası: %v", err)
@@ -321,12 +305,10 @@ func GetSharedFolderContents() fiber.Handler {
 			})
 		}
 
-		// Sadece erişimi olan dosyaları filtrele ve erişim bilgilerini ekle
 		accessibleFiles := make([]fiber.Map, 0)
 		for _, file := range files {
 			canAccessFile, err := helpers.CanUserAccess(userID, "file", file.ID.Hex(), helpers.AccessLevelRead)
 			if err == nil && canAccessFile {
-				// Dosya için erişim bilgilerini al
 				accessType := getAccessTypeFromList(file.AccessList, userID)
 
 				accessibleFiles = append(accessibleFiles, fiber.Map{
@@ -358,11 +340,9 @@ func GetSharedFolderContents() fiber.Handler {
 			}
 		}
 
-		// Klasör response'ları formatla
 		folderList := make([]fiber.Map, 0, len(accessibleSubFolders))
 		for _, subFolderData := range accessibleSubFolders {
 			subFolder := subFolderData["folder"].(models.FolderResponse)
-			// Calculate real count for nested shared folders too
 			count, err := services.FolderServiceInstance.GetFolderItemCount(subFolder.ID)
 			if err != nil {
 				log.Printf("Nested shared folder item count hesaplama hatası: %v", err)
@@ -379,7 +359,6 @@ func GetSharedFolderContents() fiber.Handler {
 			})
 		}
 
-		// Dosya response'ları formatla
 		fileList := make([]fiber.Map, 0, len(accessibleFiles))
 		for _, fileData := range accessibleFiles {
 			fileList = append(fileList, fiber.Map{
@@ -438,10 +417,8 @@ func UpdateAccessPermission() fiber.Handler {
 			})
 		}
 
-		// Check if user can share this resource (requires write access or owner)
 		canShare, err := helpers.CanUserShare(userID, "file", resourceID)
 		if err != nil || !canShare {
-			// Try folder
 			canShare, err = helpers.CanUserShare(userID, "folder", resourceID)
 			if err != nil || !canShare {
 				fmt.Printf("DEBUG: User %s cannot share this resource\n", userID)
@@ -451,13 +428,9 @@ func UpdateAccessPermission() fiber.Handler {
 			}
 		}
 
-		// Initialize variables
 		var updateResult *mongo.UpdateResult
 		var accessEntry models.AccessEntry
 
-		// First try to update existing access entry for this user
-
-		// Try to update existing entry first
 		fileUpdateResult, err := database.FileCollection.UpdateOne(
 			context.Background(),
 			bson.M{
@@ -478,7 +451,6 @@ func UpdateAccessPermission() fiber.Handler {
 			// File update error - continue to folder update
 		}
 
-		// If no existing entry was updated, add new one
 		if fileUpdateResult == nil || fileUpdateResult.MatchedCount == 0 {
 			accessEntry = models.AccessEntry{
 				UserID:     req.UserID,
@@ -487,7 +459,6 @@ func UpdateAccessPermission() fiber.Handler {
 				GrantedBy:  userID,
 			}
 
-			// First, ensure access_list field exists (if null, set to empty array)
 			database.FileCollection.UpdateOne(
 				context.Background(),
 				bson.M{
@@ -515,10 +486,8 @@ func UpdateAccessPermission() fiber.Handler {
 			}
 		}
 
-		// If file update didn't work, try folder
 		if fileUpdateResult == nil || fileUpdateResult.MatchedCount == 0 {
 
-			// Try to update existing folder entry first
 			folderUpdateResult, err := database.FolderCollection.UpdateOne(
 				context.Background(),
 				bson.M{
@@ -539,9 +508,7 @@ func UpdateAccessPermission() fiber.Handler {
 				// Folder update error - continue
 			}
 
-			// If no existing folder entry was updated, add new one
 			if folderUpdateResult == nil || folderUpdateResult.MatchedCount == 0 {
-				// Ensure access_list field exists for folder too
 				database.FolderCollection.UpdateOne(
 					context.Background(),
 					bson.M{
@@ -572,7 +539,6 @@ func UpdateAccessPermission() fiber.Handler {
 			}
 		}
 
-		// Set updateResult to fileUpdateResult if folder update didn't work
 		if updateResult == nil {
 			updateResult = fileUpdateResult
 		}
@@ -583,9 +549,7 @@ func UpdateAccessPermission() fiber.Handler {
 			})
 		}
 
-		// Hiyerarşik propagation - tüm alt öğeleri güncelle
 		if req.Permission != "none" {
-			// Yeni erişim ekleme veya güncelleme - tüm alt öğeleri de güncelle
 			err = helpers.PropagateAccessToChildren(resourceOID, req.UserID, req.Permission, userID)
 			if err != nil {
 				// Propagation başarısız olsa da ana işlem başarılı, devam et
@@ -607,7 +571,6 @@ func RemoveUserAccess() fiber.Handler {
 			})
 		}
 
-		// Get userId from URL parameter instead of request body
 		userIDToRemove := c.Params("userId")
 
 		resourceID := c.Params("resourceId")
@@ -618,10 +581,8 @@ func RemoveUserAccess() fiber.Handler {
 			})
 		}
 
-		// Check if user can share this resource (requires write access or owner)
 		canShare, err := helpers.CanUserShare(userID, "file", resourceID)
 		if err != nil || !canShare {
-			// Try folder
 			canShare, err = helpers.CanUserShare(userID, "folder", resourceID)
 			if err != nil || !canShare {
 				fmt.Printf("DEBUG: User %s cannot share this resource\n", userID)
@@ -631,7 +592,6 @@ func RemoveUserAccess() fiber.Handler {
 			}
 		}
 
-		// Remove user from file's access_list
 		updateResult, err := database.FileCollection.UpdateOne(
 			context.Background(),
 			bson.M{
@@ -651,7 +611,6 @@ func RemoveUserAccess() fiber.Handler {
 		}
 
 		if updateResult.MatchedCount == 0 {
-			// Try removing from folder's access_list
 			updateResult, err = database.FolderCollection.UpdateOne(
 				context.Background(),
 				bson.M{
@@ -677,7 +636,6 @@ func RemoveUserAccess() fiber.Handler {
 			})
 		}
 
-		// Hiyerarşik propagation - tüm alt öğelerden de kullanıcıyı çıkar
 		err = helpers.RemoveAccessFromChildren(resourceOID, userIDToRemove)
 		if err != nil {
 			// Propagation başarısız olsa da ana işlem başarılı, devam et
@@ -769,11 +727,9 @@ func GetResourceByPublicLink() fiber.Handler {
 
 		ctx := context.Background()
 
-		// Önce file'larda ara
 		var file models.File
 		err = database.FileCollection.FindOne(ctx, bson.M{"public_link": publicLink}).Decode(&file)
 		if err == nil {
-			// File bulundu, kullanıcıyı access list'e ekle
 			accessEntry := models.AccessEntry{
 				UserID:     userID,
 				AccessType: "read",
@@ -781,7 +737,6 @@ func GetResourceByPublicLink() fiber.Handler {
 				GrantedBy:  file.UserID,
 			}
 
-			// Kullanıcı zaten access list'te var mı kontrol et
 			existingAccess := false
 			for _, access := range file.AccessList {
 				if access.UserID == userID {
@@ -818,7 +773,6 @@ func GetResourceByPublicLink() fiber.Handler {
 			})
 		}
 
-		// File bulunamadı, folder'larda ara
 		var folder models.Folder
 		err = database.FolderCollection.FindOne(ctx, bson.M{"public_link": publicLink}).Decode(&folder)
 		if err != nil {
@@ -827,7 +781,6 @@ func GetResourceByPublicLink() fiber.Handler {
 			})
 		}
 
-		// Folder bulundu, kullanıcıyı access list'e ekle
 		accessEntry := models.AccessEntry{
 			UserID:     userID,
 			AccessType: "read",
@@ -835,7 +788,6 @@ func GetResourceByPublicLink() fiber.Handler {
 			GrantedBy:  folder.UserID,
 		}
 
-		// Kullanıcı zaten access list'te var mı kontrol et
 		existingAccess := false
 		for _, access := range folder.AccessList {
 			if access.UserID == userID {
@@ -863,7 +815,7 @@ func GetResourceByPublicLink() fiber.Handler {
 				Name:       folder.Name,
 				Color:      folder.Color,
 				PublicLink: folder.PublicLink,
-				ItemCount:  0, // Bu daha sonra hesaplanacak
+				ItemCount:  0,
 				AccessList: folder.AccessList,
 				FolderID:   folder.FolderID,
 				CreatedAt:  folder.CreatedAt,

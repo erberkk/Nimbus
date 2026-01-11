@@ -19,7 +19,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
-import { fileApi } from '../services/api';
+import { fileApi, folderApi } from '../services/api';
 import { formatFileSize } from '../utils/fileUtils';
 
 const MotionBox = motion.create(Box);
@@ -43,7 +43,6 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
     }
   }, [mode]);
 
-  // Modal açıldığında state'leri temizle
   useEffect(() => {
     if (open) {
       setError('');
@@ -69,8 +68,24 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
     e.stopPropagation();
     setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      
+      // Klasör entry'si kontrolü (size: 0, type: '' -> klasör)
+      const hasEmptyFolder = files.some(file => file.size === 0 && file.type === '');
+      if (hasEmptyFolder) {
+        setError('Tarayıcılar drag & drop ile klasör yüklemeyi desteklemiyor. Lütfen "Klasör Seç" butonunu kullanın.');
+        window.toast?.error('Klasör yüklemek için "Klasör Seç" butonunu kullanın');
+        return;
+      }
+      
+      const hasFolderStructure = files.some(file => file.webkitRelativePath && file.webkitRelativePath.includes('/'));
+      
+      if (isFolderUpload || files.length > 1 || hasFolderStructure) {
+        handleMultipleFiles(files);
+      } else {
+        handleFile(files[0]);
+      }
     }
   };
 
@@ -81,13 +96,11 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
     setUploadedFile(null);
     setProgress(0);
 
-    // Validate file
     if (!file) {
       setError(t('select_file'));
       return;
     }
 
-    // Check file size (100MB limit)
     if (file.size > 100 * 1024 * 1024) {
       setError(t('file_too_large'));
       return;
@@ -96,18 +109,15 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
     try {
       setUploading(true);
 
-      // Step 1: Get presigned URL
       const presignedResponse = await fileApi.getUploadPresignedURL(file.name, file.type);
       const { presigned_url, minio_path } = presignedResponse;
 
-      // Step 2: Upload file to MinIO using presigned URL
       await uploadToMinIO(presigned_url, file);
 
-      // Step 3: Save file metadata to MongoDB
       await fileApi.createFile({
         filename: file.name,
         size: file.size,
-        content_type: file.type || 'application/octet-stream', // Fallback to binary if type is empty
+        content_type: file.type || 'application/octet-stream',
         minio_path: minio_path,
         folder_id: currentFolderId || null,
       });
@@ -120,13 +130,229 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
         type: file.type,
       });
 
-      // Call success callback immediately to refresh content
       if (onUploadSuccess) {
-        onUploadSuccess(file.name);
+        onUploadSuccess();
       }
     } catch (err) {
       console.error('Upload error:', err);
       const errorMessage = err.response?.data?.error || t('upload_error');
+      setError(errorMessage);
+      window.toast?.error(errorMessage);
+    } finally {
+      setUploading(false);
+      setProgress(0);
+    }
+  };
+
+  // MIME type tahmin fonksiyonu
+  const guessMimeType = (filename) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const mimeTypes = {
+      // Documents
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ppt: 'application/vnd.ms-powerpoint',
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      txt: 'text/plain',
+      csv: 'text/csv',
+      rtf: 'application/rtf',
+      // Images
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      bmp: 'image/bmp',
+      tiff: 'image/tiff',
+      svg: 'image/svg+xml',
+      // Code files
+      py: 'text/x-python',
+      js: 'application/javascript',
+      jsx: 'application/javascript',
+      ts: 'application/typescript',
+      tsx: 'application/typescript',
+      json: 'application/json',
+      xml: 'application/xml',
+      html: 'text/html',
+      css: 'text/css',
+      md: 'text/markdown',
+      yaml: 'application/x-yaml',
+      yml: 'application/x-yaml',
+      sh: 'application/x-sh',
+      bash: 'application/x-sh',
+      go: 'text/x-go',
+      rs: 'text/x-rust',
+      java: 'text/x-java',
+      kt: 'text/x-kotlin',
+      kts: 'text/x-kotlin',
+      cs: 'text/x-csharp',
+      php: 'text/x-php',
+      rb: 'text/x-ruby',
+      pl: 'text/x-perl',
+      scala: 'text/x-scala',
+      c: 'text/x-c',
+      cpp: 'text/x-c++',
+      cc: 'text/x-c++',
+      cxx: 'text/x-c++',
+      h: 'text/x-c',
+      hpp: 'text/x-c++',
+      sql: 'application/x-sql',
+      vue: 'text/plain',
+      svelte: 'text/plain',
+      swift: 'text/plain',
+      dart: 'text/plain',
+      lua: 'text/plain',
+      r: 'text/plain',
+      m: 'text/plain',
+      mm: 'text/plain',
+      ps1: 'text/plain',
+      // Archives
+      zip: 'application/zip',
+      rar: 'application/x-rar-compressed',
+      '7z': 'application/x-7z-compressed',
+      gz: 'application/gzip',
+      // Audio
+      mp3: 'audio/mpeg',
+      wav: 'audio/wav',
+      flac: 'audio/flac',
+      aac: 'audio/aac',
+      ogg: 'audio/ogg',
+      m4a: 'audio/mp4',
+      // Video
+      mp4: 'video/mp4',
+      avi: 'video/x-msvideo',
+      mov: 'video/quicktime',
+      wmv: 'video/x-ms-wmv',
+      webm: 'video/webm',
+      mkv: 'video/x-matroska',
+    };
+    return mimeTypes[ext] || 'application/octet-stream';
+  };
+
+  const handleMultipleFiles = async (files) => {
+    setError('');
+    setSuccess('');
+    setUploadedFile(null);
+    setProgress(0);
+    setUploading(true);
+
+    try {
+      const folderStructure = {};
+      const filesByPath = {};
+
+      for (const file of files) {
+        if (!file.size || file.size === 0) {
+          continue;
+        }
+
+        const relativePath = file.webkitRelativePath || file.name;
+        const pathParts = relativePath.split('/');
+        
+        const fileName = pathParts[pathParts.length - 1];
+        
+        if (!fileName || fileName.trim() === '') {
+          continue;
+        }
+        
+        const folderPath = pathParts.slice(0, -1).join('/');
+        
+        if (folderPath) {
+          if (!folderStructure[folderPath]) {
+            folderStructure[folderPath] = [];
+          }
+          folderStructure[folderPath].push(file);
+          filesByPath[relativePath] = { file, fileName, folderPath };
+        } else {
+          filesByPath[relativePath] = { file, fileName, folderPath: '' };
+        }
+      }
+
+      const totalFiles = Object.keys(filesByPath).length;
+
+      if (totalFiles === 0) {
+        setError('Seçilen klasörde yüklenebilir dosya bulunamadı');
+        window.toast?.error('Seçilen klasörde yüklenebilir dosya bulunamadı');
+        setUploading(false);
+        return;
+      }
+
+      const folderIdCache = {};
+      const sortedFolderPaths = Object.keys(folderStructure).sort((a, b) => {
+        return a.split('/').length - b.split('/').length;
+      });
+
+      for (const folderPath of sortedFolderPaths) {
+        const pathParts = folderPath.split('/');
+        let currentParentId = currentFolderId || null;
+
+        for (let i = 0; i < pathParts.length; i++) {
+          const partialPath = pathParts.slice(0, i + 1).join('/');
+          
+          if (folderIdCache[partialPath]) {
+            currentParentId = folderIdCache[partialPath];
+            continue;
+          }
+
+          const folderName = pathParts[i];
+          try {
+            const folderResponse = await folderApi.createFolder({
+              name: folderName,
+              folder_id: currentParentId,
+              color: '#3b82f6',
+            });
+            
+            const folderId = folderResponse.folder?.id || folderResponse.folder?.ID;
+            folderIdCache[partialPath] = folderId;
+            currentParentId = folderId;
+          } catch (err) {
+            console.error(`Klasör oluşturma hatası (${folderName}):`, err);
+            if (err.response?.data?.error?.includes('zaten mevcut')) {
+              continue;
+            }
+            throw err;
+          }
+        }
+      }
+
+      let uploadedCount = 0;
+
+      for (const [relativePath, { file, fileName, folderPath }] of Object.entries(filesByPath)) {
+        const targetFolderId = folderPath ? folderIdCache[folderPath] : (currentFolderId || null);
+        
+        const contentType = file.type || guessMimeType(fileName);
+
+        try {
+          const presignedResponse = await fileApi.getUploadPresignedURL(fileName, contentType);
+          const { presigned_url, minio_path } = presignedResponse;
+
+          await uploadToMinIO(presigned_url, file);
+
+          await fileApi.createFile({
+            filename: fileName,
+            size: file.size,
+            content_type: contentType,
+            minio_path: minio_path,
+            folder_id: targetFolderId,
+          });
+
+          uploadedCount++;
+          setProgress((uploadedCount / totalFiles) * 100);
+        } catch (err) {
+          console.error(`Dosya yükleme hatası (${fileName}):`, err);
+          throw err;
+        }
+      }
+
+      setSuccess(`${uploadedCount} dosya başarıyla yüklendi`);
+      if (onUploadSuccess) {
+        onUploadSuccess();
+      }
+    } catch (err) {
+      console.error('Klasör yükleme hatası:', err);
+      const errorMessage = err.response?.data?.error || 'Klasör yükleme başarısız';
       setError(errorMessage);
       window.toast?.error(errorMessage);
     } finally {
@@ -164,42 +390,7 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
     });
   };
 
-  const handleMultipleFiles = async files => {
-    setUploading(true);
-    setProgress(0);
-    setError('');
-    setSuccess('');
-
-    let uploadedCount = 0;
-    const totalFiles = files.length;
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        // Her dosya için hem MinIO'ya yükle hem MongoDB'ye kayıt oluştur
-        await uploadSingleFileComplete(file);
-        uploadedCount++;
-        setProgress((uploadedCount / totalFiles) * 100);
-      }
-
-      setSuccess(`${uploadedCount} dosya başarıyla yüklendi`);
-      // Hemen callback'i çağır ve içeriği yenile
-      if (onUploadSuccess) {
-        onUploadSuccess();
-      }
-      // Dialog'u kapat
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    } catch (error) {
-      setError(`Yükleme hatası: ${error.message}`);
-      window.toast?.error(`Yükleme hatası: ${error.message}`);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // Tek dosya için tam yükleme işlemi (MinIO + MongoDB)
+  // Tek dosya için tam yükleme işlemi (MinIO + MongoDB) - DEPRECATED, handleMultipleFiles kullan
   const uploadSingleFileComplete = async file => {
     try {
       // Step 1: Get presigned URL
@@ -226,11 +417,9 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
   const handleFileSelect = e => {
     if (e.target.files && e.target.files.length > 0) {
       if (isFolderUpload) {
-        // Klasör yükleme modu - tüm dosyaları yükle
         const files = Array.from(e.target.files);
         handleMultipleFiles(files);
       } else {
-        // Tek dosya yükleme modu
         handleFile(e.target.files[0]);
       }
     }
@@ -332,9 +521,11 @@ const FileUpload = ({ open, onClose, onUploadSuccess, currentFolderId, mode = 'b
           type="file"
           onChange={handleFileSelect}
           style={{ display: 'none' }}
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.mp3,.wav,.flac,.aac,.ogg,.m4a,.mp4,.avi,.mov,.wmv,.webm,.mkv,.py,.js,.jsx,.ts,.tsx,.cs,.java,.kt,.kts,.json,.md,.xml,.html,.css,.sh,.bash,.yaml,.yml,.go,.rs,.php,.rb,.pl,.scala,.c,.cpp,.cc,.cxx,.h,.hpp,.sql,.vue,.svelte,.swift,.dart,.lua,.r,.m,.mm,.ps1"
-          multiple={!isFolderUpload}
+          accept={isFolderUpload ? undefined : "image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.mp3,.wav,.flac,.aac,.ogg,.m4a,.mp4,.avi,.mov,.wmv,.webm,.mkv,.py,.js,.jsx,.ts,.tsx,.cs,.java,.kt,.kts,.json,.md,.xml,.html,.css,.sh,.bash,.yaml,.yml,.go,.rs,.php,.rb,.pl,.scala,.c,.cpp,.cc,.cxx,.h,.hpp,.sql,.vue,.svelte,.swift,.dart,.lua,.r,.m,.mm,.ps1"}
+          multiple={isFolderUpload}
           webkitdirectory={isFolderUpload ? '' : undefined}
+          directory={isFolderUpload ? '' : undefined}
+          mozdirectory={isFolderUpload ? '' : undefined}
         />
 
         <AnimatePresence>

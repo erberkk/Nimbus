@@ -23,18 +23,15 @@ func (fs *FolderService) CreateFolder(userID, name, color, folderID string) (*mo
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Aynı isimde klasör var mı kontrol et (parent folder'a göre)
 	var existingFolder models.Folder
 	filter := bson.M{
 		"user_id": userID,
 		"name":    name,
 	}
 
-	// Eğer parent folder varsa, o klasör içinde aynı isimde klasör var mı kontrol et
 	if folderID != "" {
 		filter["folder_id"] = folderID
 	} else {
-		// Root seviyede kontrol
 		filter["folder_id"] = bson.M{"$exists": false}
 	}
 
@@ -44,7 +41,6 @@ func (fs *FolderService) CreateFolder(userID, name, color, folderID string) (*mo
 		return nil, fmt.Errorf("bu isimde bir klasör zaten mevcut")
 	}
 
-	// Public link oluştur
 	publicLink, err := helpers.GeneratePublicLink()
 	if err != nil {
 		return nil, fmt.Errorf("public link oluşturulamadı: %v", err)
@@ -56,24 +52,20 @@ func (fs *FolderService) CreateFolder(userID, name, color, folderID string) (*mo
 		Name:       name,
 		Color:      color,
 		PublicLink: publicLink,
-		AccessList: []models.AccessEntry{}, // Initialize empty access list
+		AccessList: []models.AccessEntry{},
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
 
-	// Eğer parent folder varsa, folder_id'yi set et ve ancestors'ı hesapla
 	if folderID != "" {
 		folder.FolderID = &folderID
 
-		// Parent klasörün ancestors'ını al ve kendi ID'mizi ekle
 		parentFolder, err := fs.GetFolderByID(folderID)
 		if err == nil {
-			// Parent'ın ancestors'ına kendi ID'mizi ekle
 			folder.Ancestors = append(parentFolder.Ancestors, parentFolder.ID)
 			folder.ParentID = &parentFolder.ID
 		}
 	} else {
-		// Root klasör - ancestors boş
 		folder.Ancestors = []primitive.ObjectID{}
 	}
 
@@ -192,7 +184,6 @@ func (fs *FolderService) GetFolderItemCount(folderID string) (int64, error) {
 func (fs *FolderService) getFolderItemCountRecursive(ctx context.Context, folderID string) (int64, error) {
 	var totalCount int64 = 0
 
-	// Direkt dosya sayısını al (sadece silinmemiş dosyalar)
 	fileCount, err := database.FileCollection.CountDocuments(ctx, bson.M{
 		"folder_id":  folderID,
 		"deleted_at": nil,
@@ -202,7 +193,6 @@ func (fs *FolderService) getFolderItemCountRecursive(ctx context.Context, folder
 	}
 	totalCount += fileCount
 
-	// Alt klasörleri al (sadece silinmemiş klasörler)
 	cursor, err := database.FolderCollection.Find(ctx, bson.M{
 		"folder_id":  folderID,
 		"deleted_at": nil,
@@ -217,13 +207,12 @@ func (fs *FolderService) getFolderItemCountRecursive(ctx context.Context, folder
 		return 0, fmt.Errorf("alt klasörler decode edilemedi: %v", err)
 	}
 
-	// Her alt klasör için recursive olarak say
 	for _, subFolder := range subFolders {
 		subCount, err := fs.getFolderItemCountRecursive(ctx, subFolder.ID.Hex())
 		if err != nil {
 			return 0, err
 		}
-		totalCount += subCount + 1 // +1 alt klasörün kendisi için
+		totalCount += subCount + 1
 	}
 
 	return totalCount, nil
@@ -241,7 +230,6 @@ func (fs *FolderService) GetFolderSize(folderID string) (int64, error) {
 func (fs *FolderService) getFolderSizeRecursive(ctx context.Context, folderID string) (int64, error) {
 	var totalSize int64 = 0
 
-	// Direkt dosyaların boyutunu al (sadece silinmemiş dosyalar)
 	cursor, err := database.FileCollection.Find(ctx, bson.M{
 		"folder_id":  folderID,
 		"deleted_at": nil,
@@ -259,7 +247,6 @@ func (fs *FolderService) getFolderSizeRecursive(ctx context.Context, folderID st
 		totalSize += file.Size
 	}
 
-	// Alt klasörleri al (sadece silinmemiş klasörler)
 	folderCursor, err := database.FolderCollection.Find(ctx, bson.M{
 		"folder_id":  folderID,
 		"deleted_at": nil,
@@ -274,7 +261,6 @@ func (fs *FolderService) getFolderSizeRecursive(ctx context.Context, folderID st
 		return 0, fmt.Errorf("alt klasörler decode edilemedi: %v", err)
 	}
 
-	// Her alt klasör için recursive olarak boyut hesapla
 	for _, subFolder := range subFolders {
 		subSize, err := fs.getFolderSizeRecursive(ctx, subFolder.ID.Hex())
 		if err != nil {
@@ -293,7 +279,6 @@ func (fs *FolderService) GetUserStorageUsage(userID string) (int64, error) {
 
 	var totalSize int64 = 0
 
-	// Kullanıcının sahibi olduğu dosyaları al
 	ownedFiles, err := database.FileCollection.Find(ctx, bson.M{"user_id": userID})
 	if err != nil {
 		return 0, fmt.Errorf("owned files alınamadı: %v", err)
@@ -308,7 +293,6 @@ func (fs *FolderService) GetUserStorageUsage(userID string) (int64, error) {
 		totalSize += file.Size
 	}
 
-	// Kullanıcının access list'te bulunduğu dosyaları al
 	accessFiles, err := database.FileCollection.Find(ctx, bson.M{
 		"access_list.user_id": userID,
 	})
@@ -323,7 +307,6 @@ func (fs *FolderService) GetUserStorageUsage(userID string) (int64, error) {
 			continue
 		}
 
-		// Kullanıcının bu dosyaya erişimi var mı kontrol et
 		for _, access := range file.AccessList {
 			if access.UserID == userID {
 				totalSize += file.Size
@@ -368,7 +351,6 @@ func (fs *FolderService) DeleteFolder(folderID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Klasörde dosya var mı kontrol et
 	count, err := fs.GetFolderItemCount(folderID)
 	if err != nil {
 		return err
@@ -433,7 +415,6 @@ func (fs *FolderService) GetSubFolders(parentFolderID string) ([]models.Folder, 
 
 	var folders []models.Folder
 
-	// Eğer parentFolderID boşsa root klasörleri getir
 	if parentFolderID == "" {
 		cursor, err := database.FolderCollection.Find(ctx, bson.M{
 			"folder_id":  bson.M{"$exists": false},
@@ -448,7 +429,6 @@ func (fs *FolderService) GetSubFolders(parentFolderID string) ([]models.Folder, 
 			return nil, fmt.Errorf("alt klasörler decode edilemedi: %v", err)
 		}
 	} else {
-		// Belirtilen klasörün alt klasörlerini getir
 		cursor, err := database.FolderCollection.Find(ctx, bson.M{
 			"folder_id":  parentFolderID,
 			"deleted_at": nil,
@@ -616,7 +596,6 @@ func (fs *FolderService) ToggleFolderStar(folderID string) (bool, error) {
 
 	newStatus := !folder.IsStarred
 
-	// 1. Ana klasörü star'la/unstar'la
 	update := bson.M{
 		"$set": bson.M{
 			"is_starred": newStatus,
@@ -629,10 +608,8 @@ func (fs *FolderService) ToggleFolderStar(folderID string) (bool, error) {
 		return false, fmt.Errorf("klasör güncellenemedi: %v", err)
 	}
 
-	// 2. Recursive olarak alt klasörleri ve dosyaları star'la/unstar'la
 	if err := fs.toggleStarRecursive(ctx, objectID, newStatus); err != nil {
 		log.Printf("Recursive star işlemi hatası: %v", err)
-		// Ana klasör zaten star'landı, hata döndürmeyelim
 	}
 
 	return newStatus, nil
@@ -640,7 +617,6 @@ func (fs *FolderService) ToggleFolderStar(folderID string) (bool, error) {
 
 // toggleStarRecursive - Alt klasörleri ve dosyaları recursive olarak star'la/unstar'la
 func (fs *FolderService) toggleStarRecursive(ctx context.Context, folderID primitive.ObjectID, starStatus bool) error {
-	// 1. Bu klasördeki dosyaları star'la/unstar'la
 	_, err := database.FileCollection.UpdateMany(
 		ctx,
 		bson.M{"folder_id": folderID.Hex()},
@@ -655,7 +631,6 @@ func (fs *FolderService) toggleStarRecursive(ctx context.Context, folderID primi
 		return fmt.Errorf("dosyalar güncellenemedi: %v", err)
 	}
 
-	// 2. Bu klasörün doğrudan alt klasörlerini bul (folder_id = folderID)
 	cursor, err := database.FolderCollection.Find(ctx, bson.M{"folder_id": folderID.Hex()})
 	if err != nil {
 		return fmt.Errorf("alt klasörler bulunamadı: %v", err)
@@ -668,7 +643,6 @@ func (fs *FolderService) toggleStarRecursive(ctx context.Context, folderID primi
 			continue
 		}
 
-		// Alt klasörü star'la/unstar'la
 		_, err := database.FolderCollection.UpdateOne(
 			ctx,
 			bson.M{"_id": subFolder.ID},
@@ -684,10 +658,8 @@ func (fs *FolderService) toggleStarRecursive(ctx context.Context, folderID primi
 			continue
 		}
 
-		// Recursive olarak alt klasörün çocuklarını da star'la/unstar'la
 		if err := fs.toggleStarRecursive(ctx, subFolder.ID, starStatus); err != nil {
 			log.Printf("Recursive star işlemi hatası (alt klasör): %v", err)
-			// Devam et, diğer alt klasörleri de işle
 		}
 	}
 
@@ -696,7 +668,7 @@ func (fs *FolderService) toggleStarRecursive(ctx context.Context, folderID primi
 
 // SoftDeleteFolder - Klasörü ve içeriğini çöp kutusuna taşı
 func (fs *FolderService) SoftDeleteFolder(folderID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // Recursion might take time
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	return fs.softDeleteFolderRecursive(ctx, folderID)
@@ -716,19 +688,16 @@ func (fs *FolderService) softDeleteFolderRecursive(ctx context.Context, folderID
 		},
 	}
 
-	// 1. Klasörü sil
 	_, err = database.FolderCollection.UpdateOne(ctx, bson.M{"_id": objectID}, update)
 	if err != nil {
 		return fmt.Errorf("klasör silinemedi: %v", err)
 	}
 
-	// 2. Bu klasördeki dosyaları sil
 	_, err = database.FileCollection.UpdateMany(ctx, bson.M{"folder_id": folderID}, update)
 	if err != nil {
 		return fmt.Errorf("klasör içeriği silinemedi: %v", err)
 	}
 
-	// 3. Alt klasörleri bul ve recursive çağır
 	cursor, err := database.FolderCollection.Find(ctx, bson.M{"folder_id": folderID})
 	if err != nil {
 		return err
@@ -762,7 +731,6 @@ func (fs *FolderService) restoreFolderRecursive(ctx context.Context, folderID st
 		return fmt.Errorf("geçersiz klasör ID'si: %v", err)
 	}
 
-	// Klasörü getir - parent kontrolü için
 	var folder models.Folder
 	err = database.FolderCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&folder)
 	if err != nil {
@@ -776,25 +744,20 @@ func (fs *FolderService) restoreFolderRecursive(ctx context.Context, folderID st
 		},
 	}
 
-	// Eğer klasör bir parent klasöre bağlıysa, o parent'ın aktif olup olmadığını kontrol et
 	if folder.FolderID != nil && *folder.FolderID != "" {
 		parentFolder, err := fs.GetFolderByID(*folder.FolderID)
 		if err != nil || parentFolder == nil || parentFolder.DeletedAt != nil {
-			// Parent klasör silinmiş - bu klasör root'a taşın
 			update["$set"].(bson.M)["folder_id"] = nil
 			update["$set"].(bson.M)["parent_id"] = nil
 			update["$set"].(bson.M)["ancestors"] = []primitive.ObjectID{}
 		}
 	}
 
-	// 1. Klasörü geri yükle
 	_, err = database.FolderCollection.UpdateOne(ctx, bson.M{"_id": objectID}, update)
 	if err != nil {
 		return fmt.Errorf("klasör geri yüklenemedi: %v", err)
 	}
 
-	// 2. Bu klasördeki dosyaları geri yükle
-	// Her dosya için parent klasörü kontrol et
 	_, err = database.FileCollection.UpdateMany(ctx, bson.M{"folder_id": folderID}, bson.M{
 		"$set": bson.M{
 			"deleted_at": nil,
@@ -805,7 +768,6 @@ func (fs *FolderService) restoreFolderRecursive(ctx context.Context, folderID st
 		return fmt.Errorf("klasör içeriği geri yüklenemedi: %v", err)
 	}
 
-	// 3. Alt klasörleri bul ve recursive çağır
 	cursor, err := database.FolderCollection.Find(ctx, bson.M{"folder_id": folderID})
 	if err != nil {
 		return err
@@ -829,11 +791,9 @@ func (fs *FolderService) restoreFolderRecursive(ctx context.Context, folderID st
 // Bu fonksiyon bir dosya/klasör restore edilirken, parent chain'ini de restore eder
 func (fs *FolderService) restoreParentHierarchy(ctx context.Context, folder *models.Folder) error {
 	if folder == nil || folder.DeletedAt == nil {
-		// Klasör zaten aktif veya nil
 		return nil
 	}
 
-	// 1. Klasörü restore et (deleted_at: nil)
 	update := bson.M{
 		"$set": bson.M{
 			"deleted_at": nil,
@@ -841,23 +801,18 @@ func (fs *FolderService) restoreParentHierarchy(ctx context.Context, folder *mod
 		},
 	}
 
-	// Eğer parent klasörü silinmişse, parent'ı root'a taşı
 	if folder.FolderID != nil && *folder.FolderID != "" {
 		parentFolder, err := fs.GetFolderByID(*folder.FolderID)
 		if err != nil || parentFolder == nil {
-			// Parent bulunamadı - root'a taşı
 			update["$set"].(bson.M)["folder_id"] = nil
 			update["$set"].(bson.M)["parent_id"] = nil
 			update["$set"].(bson.M)["ancestors"] = []primitive.ObjectID{}
 		} else if parentFolder.DeletedAt != nil {
-			// Parent silinmiş - parent'ı da restore et (recursive)
 			if err := fs.restoreParentHierarchy(ctx, parentFolder); err != nil {
-				// Hata durumunda bu klasörü root'a taşı
 				update["$set"].(bson.M)["folder_id"] = nil
 				update["$set"].(bson.M)["parent_id"] = nil
 				update["$set"].(bson.M)["ancestors"] = []primitive.ObjectID{}
 			}
-			// Aksi takdirde, parent'ın ancestors'ı güncelle
 		}
 	}
 
@@ -875,19 +830,16 @@ func (fs *FolderService) MoveFolder(folderID string, targetFolderID *string) err
 		return fmt.Errorf("geçersiz klasör ID'si: %v", err)
 	}
 
-	// 1. Klasörü bul
 	folder, err := fs.GetFolderByID(folderID)
 	if err != nil {
 		return err
 	}
 
-	// 2. Circular dependency kontrolü
 	if targetFolderID != nil && *targetFolderID != "" {
 		if folderID == *targetFolderID {
 			return fmt.Errorf("klasör kendi içine taşınamaz")
 		}
 
-		// Hedef klasör, taşınan klasörün alt klasörü mü?
 		targetFolder, err := fs.GetFolderByID(*targetFolderID)
 		if err != nil {
 			return fmt.Errorf("hedef klasör bulunamadı")
@@ -900,7 +852,6 @@ func (fs *FolderService) MoveFolder(folderID string, targetFolderID *string) err
 		}
 	}
 
-	// 3. Yeni Ancestors listesini hesapla
 	var newAncestors []primitive.ObjectID
 	var newParentID *primitive.ObjectID
 
@@ -913,7 +864,6 @@ func (fs *FolderService) MoveFolder(folderID string, targetFolderID *string) err
 		newParentID = nil
 	}
 
-	// 4. Güncelleme
 	update := bson.M{
 		"$set": bson.M{
 			"folder_id":  targetFolderID,
@@ -928,15 +878,12 @@ func (fs *FolderService) MoveFolder(folderID string, targetFolderID *string) err
 		return fmt.Errorf("klasör taşınamadı: %v", err)
 	}
 
-	// 5. Alt klasörlerin ve dosyaların ancestors'larını recursive güncelle
 	return fs.updateDescendantsAncestors(ctx, folder.ID, newAncestors)
 }
 
 func (fs *FolderService) updateDescendantsAncestors(ctx context.Context, folderID primitive.ObjectID, parentAncestors []primitive.ObjectID) error {
-	// Yeni ancestors listesi: Parent'ın ancestors'ı + Parent ID
 	currentAncestors := append(parentAncestors, folderID)
 
-	// 1. Bu klasörün altındaki dosyaları güncelle
 	_, err := database.FileCollection.UpdateMany(
 		ctx,
 		bson.M{"folder_id": folderID.Hex()},
@@ -951,7 +898,6 @@ func (fs *FolderService) updateDescendantsAncestors(ctx context.Context, folderI
 		return err
 	}
 
-	// 2. Bu klasörün altındaki klasörleri bul ve güncelle
 	cursor, err := database.FolderCollection.Find(ctx, bson.M{"folder_id": folderID.Hex()})
 	if err != nil {
 		return err
@@ -964,7 +910,6 @@ func (fs *FolderService) updateDescendantsAncestors(ctx context.Context, folderI
 			continue
 		}
 
-		// Önce alt klasörün kaydını güncelle
 		_, err := database.FolderCollection.UpdateOne(
 			ctx,
 			bson.M{"_id": subFolder.ID},
@@ -979,7 +924,6 @@ func (fs *FolderService) updateDescendantsAncestors(ctx context.Context, folderI
 			return err
 		}
 
-		// Recursive olarak onun çocuklarını güncelle
 		if err := fs.updateDescendantsAncestors(ctx, subFolder.ID, currentAncestors); err != nil {
 			return err
 		}

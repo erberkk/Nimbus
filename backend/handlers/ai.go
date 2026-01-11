@@ -48,7 +48,6 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Get file record
 		file, err := services.FileServiceInstance.GetFileByID(req.FileID)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
@@ -56,7 +55,6 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if user has access to the file (using proper access control with hierarchical checks)
 		hasAccess, err := helpers.CanUserAccess(userID, "file", req.FileID, helpers.AccessLevelRead)
 		if err != nil || !hasAccess {
 			return c.Status(403).JSON(fiber.Map{
@@ -64,7 +62,6 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if file has been processed
 		if file.ProcessingStatus != "completed" {
 			return c.Status(409).JSON(fiber.Map{
 				"error":  "Dosya henüz işlenmedi. Lütfen işlem tamamlanana kadar bekleyin.",
@@ -72,44 +69,36 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Initialize services
 		ollamaService := services.NewOllamaService(cfg)
 		chromaService := services.NewChromaService(cfg)
 
-		// Initialize retrieval components
 		intentClassifier := retrieval.NewIntentClassifier()
 		termExtractor := retrieval.NewKeyTermExtractor()
 
-		// Step 1: Analyze query intent
 		intentMetadata := intentClassifier.AnalyzeQuery(req.Question)
 		log.Printf("Query intent: %s (confidence: %.2f) - %s",
 			intentMetadata.Intent, intentMetadata.Confidence, intentMetadata.Explanation)
 
-		// Step 2: Extract key terms from query
 		keyTerms := termExtractor.ExtractNamedTerms(req.Question)
 		log.Printf("Extracted key terms: %v", keyTerms)
 
-		// Step 3: Determine retrieval strategy based on intent
 		var chunks []services.ChunkResult
 		var retrievalErr error
 
-		// Use hybrid search for comparison queries (keyword + semantic) to ensure we find comparison tables
 		if intentMetadata.Intent == retrieval.IntentComparison && len(keyTerms) >= 2 {
 			log.Printf("Using hybrid search for comparison query with %d terms", len(keyTerms))
 			chunks, retrievalErr = performHybridRetrieval(
 				ollamaService, chromaService,
 				req.Question, keyTerms, req.FileID, intentMetadata.RecommendedTopK)
 		} else if intentMetadata.Intent == retrieval.IntentDefinition && len(keyTerms) > 0 {
-			// For definition queries, use hybrid search (keyword + semantic)
 			log.Printf("Using hybrid search for definition query")
 			chunks, retrievalErr = performHybridRetrieval(
 				ollamaService, chromaService,
 				req.Question, keyTerms, req.FileID, intentMetadata.RecommendedTopK)
 		} else if intentMetadata.Intent == retrieval.IntentSummary {
-			// For summary queries, retrieve more chunks for comprehensive overview
 			topK := intentMetadata.RecommendedTopK
 			if topK < 10 {
-				topK = 10 // Minimum 10 chunks for summary
+				topK = 10
 			}
 			log.Printf("Using standard semantic search for summary query with top-k=%d", topK)
 			questionEmbedding, embErr := ollamaService.GenerateEmbedding(req.Question)
@@ -121,7 +110,6 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			}
 			chunks, retrievalErr = chromaService.QuerySimilar(questionEmbedding, req.FileID, topK)
 		} else {
-			// Standard semantic search with dynamic top-k based on intent
 			log.Printf("Using standard semantic search with top-k=%d", intentMetadata.RecommendedTopK)
 			questionEmbedding, embErr := ollamaService.GenerateEmbedding(req.Question)
 			if embErr != nil {
@@ -147,16 +135,13 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Debug: Log which chunks were retrieved
 		chunkIDs := make([]string, len(chunks))
 		for i, chunk := range chunks {
 			chunkIDs[i] = chunk.ID
 		}
 		log.Printf("Retrieved %d relevant chunks for query: %v", len(chunks), chunkIDs)
 
-		// If this is a comparison query, prioritize chunks with comparison type
 		if intentMetadata.Intent == "comparison" {
-			// Separate chunks by type
 			var comparisonChunks []services.ChunkResult
 			var otherChunks []services.ChunkResult
 			for _, chunk := range chunks {
@@ -166,20 +151,15 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 					otherChunks = append(otherChunks, chunk)
 				}
 			}
-			// Reorder: comparison chunks first, then others
 			if len(comparisonChunks) > 0 {
 				chunks = append(comparisonChunks, otherChunks...)
 				log.Printf("Reordered chunks: %d comparison chunks prioritized", len(comparisonChunks))
 			}
 
-			// SECOND-LEVEL REORDERING: Find perfect match (comparison table with ALL query terms)
-			// and move it to absolute position 0
 			var perfectMatchIdx = -1
 			for i, chunk := range chunks {
 				textLower := strings.ToLower(chunk.Text)
-				// Check if this chunk is a comparison table
 				if strings.Contains(textLower, "comparison table:") || strings.Contains(textLower, "comparison of") {
-					// Check if it contains ALL key terms
 					allTermsFound := true
 					for _, term := range keyTerms {
 						if !strings.Contains(textLower, strings.ToLower(term)) {
@@ -194,22 +174,15 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 				}
 			}
 
-			// Move perfect match to position 0
 			if perfectMatchIdx > 0 {
 				perfectMatch := chunks[perfectMatchIdx]
-				// Remove from current position
 				chunks = append(chunks[:perfectMatchIdx], chunks[perfectMatchIdx+1:]...)
-				// Insert at position 0
 				chunks = append([]services.ChunkResult{perfectMatch}, chunks...)
 				log.Printf("🎯 Perfect match comparison table moved to position 1 (was at position %d)", perfectMatchIdx+1)
 			}
 
-			// SMART OPTIMIZATION: Only reduce to single chunk if:
-			// 1. Perfect match found
-			// 2. Perfect match contains "COMPARISON TABLE" marker
-			// 3. Query is a specific table query (not a general multi-chunk question)
 			if perfectMatchIdx >= 0 {
-				perfectMatch := chunks[0] // It's now at position 0
+				perfectMatch := chunks[0]
 				textLower := strings.ToLower(perfectMatch.Text)
 				hasComparisonTableMarker := strings.Contains(textLower, "comparison table:") ||
 					strings.Contains(textLower, "comparison of")
@@ -223,11 +196,9 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			}
 		}
 
-		// If this is a definition query, prioritize chunks that contain the term prominently
 		if intentMetadata.Intent == "definition" && len(keyTerms) > 0 {
-			primaryTerm := strings.ToLower(keyTerms[0]) // First key term is usually the term being defined
+			primaryTerm := strings.ToLower(keyTerms[0])
 
-			// Find the best matching chunk (one that contains the term)
 			var bestMatchIdx = -1
 			var bestScore = 0
 
@@ -235,39 +206,32 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 				textLower := strings.ToLower(chunk.Text)
 				score := 0
 
-				// Check if term appears in chunk
 				if !strings.Contains(textLower, primaryTerm) {
 					continue
 				}
 
-				// Score based on position and prominence
-				// Higher score = better match
 				if strings.HasPrefix(textLower, primaryTerm) {
-					score += 100 // Term at start of chunk
+					score += 100
 				}
 
-				// Check first 200 chars for prominence
 				first200 := textLower
 				if len(first200) > 200 {
 					first200 = first200[:200]
 				}
 				if strings.Contains(first200, primaryTerm) {
-					score += 50 // Term in first 200 chars
+					score += 50
 				}
 
-				// Check if term appears as standalone word (not part of another word)
 				if strings.Contains(first200, primaryTerm+" ") ||
 					strings.Contains(first200, primaryTerm+"\n") ||
 					strings.Contains(first200, " "+primaryTerm+" ") {
-					score += 30 // Term as standalone word
+					score += 30
 				}
 
-				// Prefer longer chunks (more complete definitions)
 				if len(chunk.Text) > 200 {
 					score += 10
 				}
 
-				// Count occurrences (more mentions = more relevant)
 				occurrences := strings.Count(textLower, primaryTerm)
 				score += occurrences * 5
 
@@ -277,12 +241,9 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 				}
 			}
 
-			// Move best match to position 0
 			if bestMatchIdx > 0 {
 				bestMatch := chunks[bestMatchIdx]
-				// Remove from current position
 				chunks = append(chunks[:bestMatchIdx], chunks[bestMatchIdx+1:]...)
-				// Insert at position 0
 				chunks = append([]services.ChunkResult{bestMatch}, chunks...)
 				log.Printf("📖 Definition term '%s' chunk moved to position 1 (was at position %d, score: %d)", primaryTerm, bestMatchIdx+1, bestScore)
 			} else if bestMatchIdx == 0 {
@@ -290,12 +251,10 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			}
 		}
 
-		// Step 4: Extract chunk texts for context
 		var contextChunks []string
 		var sources []string
 		for _, chunk := range chunks {
 			contextChunks = append(contextChunks, chunk.Text)
-			// Keep sources short for response
 			chunkPreview := chunk.Text
 			if len(chunkPreview) > 200 {
 				chunkPreview = chunkPreview[:200] + "..."
@@ -305,7 +264,6 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 
 		log.Printf("Found %d relevant chunks for question: %s", len(chunks), req.Question)
 
-		// Step 4: Generate answer using LLM with context
 		answer, err := ollamaService.GenerateRAGResponse(req.Question, contextChunks)
 		if err != nil {
 			log.Printf("Failed to generate answer: %v", err)
@@ -314,10 +272,8 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Clean up answer
 		answer = strings.TrimSpace(answer)
 
-		// Save user question to conversation history
 		userMessage := models.Message{
 			Role:      "user",
 			Content:   req.Question,
@@ -325,10 +281,8 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 		}
 		if err := services.ConversationServiceInstance.AddMessage(userID, req.FileID, userMessage); err != nil {
 			log.Printf("Warning: Failed to save user message: %v", err)
-			// Don't fail the request, just log the error
 		}
 
-		// Save assistant answer to conversation history
 		assistantMessage := models.Message{
 			Role:      "assistant",
 			Content:   answer,
@@ -337,10 +291,8 @@ func QueryDocument(cfg *config.Config) fiber.Handler {
 		}
 		if err := services.ConversationServiceInstance.AddMessage(userID, req.FileID, assistantMessage); err != nil {
 			log.Printf("Warning: Failed to save assistant message: %v", err)
-			// Don't fail the request, just log the error
 		}
 
-		// Return response
 		return c.JSON(QueryDocumentResponse{
 			Answer:     answer,
 			Sources:    sources,
@@ -366,8 +318,6 @@ func GetConversationHistory(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Verify access (using proper access control with hierarchical checks)
-		// This also checks if file exists
 		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
 		if err != nil || !hasAccess {
 			return c.Status(403).JSON(fiber.Map{
@@ -375,10 +325,8 @@ func GetConversationHistory(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Get conversation
 		conversation, err := services.ConversationServiceInstance.GetConversation(userID, fileID)
 		if err != nil {
-			// No conversation yet, return empty
 			return c.JSON(models.ConversationResponse{
 				ID:        "",
 				FileID:    fileID,
@@ -388,7 +336,6 @@ func GetConversationHistory(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Return conversation
 		return c.JSON(models.ConversationResponse{
 			ID:        conversation.ID.Hex(),
 			FileID:    conversation.FileID,
@@ -441,7 +388,6 @@ func ClearConversationHistory(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Check if user has access to the file (using proper access control)
 		hasAccess, err := helpers.CanUserAccess(userID, "file", fileID, helpers.AccessLevelRead)
 		if err != nil || !hasAccess {
 			return c.Status(403).JSON(fiber.Map{
@@ -449,7 +395,6 @@ func ClearConversationHistory(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Clear conversation
 		if err := services.ConversationServiceInstance.ClearConversation(userID, fileID); err != nil {
 			log.Printf("Failed to clear conversation: %v", err)
 			return c.Status(500).JSON(fiber.Map{
@@ -472,13 +417,11 @@ func performHybridRetrieval(
 	fileID string,
 	topK int,
 ) ([]services.ChunkResult, error) {
-	// Generate query embedding
 	queryEmbedding, err := ollamaService.GenerateEmbedding(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
 
-	// Perform hybrid search (semantic + keyword)
 	chunks, err := chromaService.HybridSearch(queryEmbedding, keywords, fileID, topK)
 	if err != nil {
 		return nil, fmt.Errorf("hybrid search failed: %w", err)
@@ -494,28 +437,21 @@ func performHybridRetrieval(
 func isSpecificTableQuery(question string, keyTerms []string) bool {
 	qLower := strings.ToLower(question)
 
-	// Check for specific comparison table patterns
 	hasComparisonOf := strings.Contains(qLower, "comparison of")
 	hasCompareVs := strings.Contains(qLower, "compare") && (strings.Contains(qLower, " vs ") || strings.Contains(qLower, " vs. ") || strings.Contains(qLower, " versus "))
 	hasVsComparison := (strings.Contains(qLower, " vs ") && strings.Contains(qLower, "comparison")) ||
 		(strings.Contains(qLower, " vs. ") && strings.Contains(qLower, "comparison")) ||
 		(strings.Contains(qLower, " versus ") && strings.Contains(qLower, "comparison"))
 
-	// Check if query has comparison indicators with key terms
 	hasComparisonIndicators := strings.Contains(qLower, "comparison") ||
 		strings.Contains(qLower, " vs ") ||
 		strings.Contains(qLower, " vs. ") ||
 		strings.Contains(qLower, " versus ")
 
-	// If it's a specific comparison pattern with key terms, it's a table query
 	if (hasComparisonOf || hasCompareVs || hasVsComparison) && hasComparisonIndicators && len(keyTerms) >= 2 {
 		return true
 	}
 
-	// Exclude general questions that need multiple chunks
-	// These patterns indicate the user wants information from multiple sources/chunks
-	// Examples: "tell me about X and Y", "what is the difference between X and Y", "explain X and Y"
-	// If X is in chunk A (page 10) and Y is in chunk B (page 100), we need BOTH chunks
 	excludePatterns := []string{
 		"tell me about",
 		"what is the difference between",
@@ -529,14 +465,13 @@ func isSpecificTableQuery(question string, keyTerms []string) bool {
 
 	for _, pattern := range excludePatterns {
 		if strings.Contains(qLower, pattern) && strings.Contains(qLower, " and ") {
-			return false // General question, needs multiple chunks (X in one chunk, Y in another)
+			return false
 		}
 	}
 
-	// If query mentions page numbers or ranges, it's likely a multi-chunk question
 	if strings.Contains(qLower, "page") || strings.Contains(qLower, "section") || strings.Contains(qLower, "chapter") {
 		return false
 	}
 
-	return false // Default: not a specific table query
+	return false
 }

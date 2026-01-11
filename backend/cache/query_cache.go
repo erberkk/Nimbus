@@ -13,20 +13,18 @@ import (
 
 // InMemoryQueryCache implements QueryCache using sync.Map with expiration tracking
 type InMemoryQueryCache struct {
-	cache      sync.Map
-	stats      CacheStats
-	statsMutex sync.RWMutex
-	ttl        time.Duration
-	
-	// Background cleanup
+	cache       sync.Map
+	stats       CacheStats
+	statsMutex  sync.RWMutex
+	ttl         time.Duration
 	stopCleanup chan struct{}
 	cleanupOnce sync.Once
 }
 
 // cacheEntry wraps CachedQuery with expiration time
 type cacheEntry struct {
-	value      *CachedQuery
-	expiresAt  time.Time
+	value     *CachedQuery
+	expiresAt time.Time
 }
 
 // NewInMemoryQueryCache creates a new in-memory query cache with the specified TTL
@@ -35,28 +33,22 @@ func NewInMemoryQueryCache(ttl time.Duration) *InMemoryQueryCache {
 		ttl:         ttl,
 		stopCleanup: make(chan struct{}),
 		stats: CacheStats{
-			MaxSize: -1, // Unlimited for query cache
+			MaxSize: -1,
 		},
 	}
-	
-	// Start background cleanup goroutine
+
 	go cache.cleanupExpired()
-	
+
 	return cache
 }
 
 // NormalizeQuery normalizes a query string for consistent caching
 // Converts to lowercase, trims whitespace, and removes extra spaces
 func NormalizeQuery(query string) string {
-	// Convert to lowercase
 	normalized := strings.ToLower(query)
-	
-	// Trim whitespace
 	normalized = strings.TrimSpace(normalized)
-	
-	// Replace multiple spaces with single space
 	normalized = strings.Join(strings.Fields(normalized), " ")
-	
+
 	return normalized
 }
 
@@ -74,16 +66,15 @@ func (c *InMemoryQueryCache) Get(key string) (*CachedQuery, bool) {
 		c.recordMiss()
 		return nil, false
 	}
-	
+
 	entry := value.(*cacheEntry)
-	
-	// Check if expired
+
 	if time.Now().After(entry.expiresAt) {
 		c.cache.Delete(key)
 		c.recordMiss()
 		return nil, false
 	}
-	
+
 	c.recordHit()
 	return entry.value, true
 }
@@ -93,15 +84,15 @@ func (c *InMemoryQueryCache) Set(key string, value *CachedQuery, ttl time.Durati
 	if ttl == 0 {
 		ttl = c.ttl
 	}
-	
+
 	entry := &cacheEntry{
 		value:     value,
 		expiresAt: time.Now().Add(ttl),
 	}
-	
+
 	c.cache.Store(key, entry)
 	c.incrementSize()
-	
+
 	return nil
 }
 
@@ -117,13 +108,13 @@ func (c *InMemoryQueryCache) Delete(key string) error {
 // Clear removes all cached queries
 func (c *InMemoryQueryCache) Clear() error {
 	c.cache = sync.Map{}
-	
+
 	c.statsMutex.Lock()
 	c.stats.Size = 0
 	now := time.Now()
 	c.stats.LastCleared = &now
 	c.statsMutex.Unlock()
-	
+
 	log.Println("Query cache cleared")
 	return nil
 }
@@ -132,7 +123,7 @@ func (c *InMemoryQueryCache) Clear() error {
 func (c *InMemoryQueryCache) Stats() CacheStats {
 	c.statsMutex.RLock()
 	defer c.statsMutex.RUnlock()
-	
+
 	stats := c.stats
 	stats.HitRate = stats.ComputeHitRate()
 	return stats
@@ -149,7 +140,7 @@ func (c *InMemoryQueryCache) Close() {
 func (c *InMemoryQueryCache) cleanupExpired() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -164,7 +155,7 @@ func (c *InMemoryQueryCache) cleanupExpired() {
 func (c *InMemoryQueryCache) performCleanup() {
 	now := time.Now()
 	expiredKeys := []string{}
-	
+
 	c.cache.Range(func(key, value interface{}) bool {
 		entry := value.(*cacheEntry)
 		if now.After(entry.expiresAt) {
@@ -172,12 +163,12 @@ func (c *InMemoryQueryCache) performCleanup() {
 		}
 		return true
 	})
-	
+
 	for _, key := range expiredKeys {
 		c.cache.Delete(key)
 		c.decrementSize()
 	}
-	
+
 	if len(expiredKeys) > 0 {
 		log.Printf("Query cache cleanup: removed %d expired entries", len(expiredKeys))
 	}
@@ -218,26 +209,26 @@ func CosineSimilarity(a, b []float64) (float64, error) {
 	if len(a) != len(b) {
 		return 0, fmt.Errorf("vectors must have same length: %d vs %d", len(a), len(b))
 	}
-	
+
 	if len(a) == 0 {
 		return 0, fmt.Errorf("vectors cannot be empty")
 	}
-	
+
 	var dotProduct, normA, normB float64
-	
+
 	for i := range a {
 		dotProduct += a[i] * b[i]
 		normA += a[i] * a[i]
 		normB += b[i] * b[i]
 	}
-	
+
 	normA = math.Sqrt(normA)
 	normB = math.Sqrt(normB)
-	
+
 	if normA == 0 || normB == 0 {
 		return 0, fmt.Errorf("vector has zero magnitude")
 	}
-	
+
 	return dotProduct / (normA * normB), nil
 }
 
@@ -245,44 +236,40 @@ func CosineSimilarity(a, b []float64) (float64, error) {
 // Returns the cached query if similarity > threshold (default 0.95)
 func (c *InMemoryQueryCache) FindSimilarQuery(embedding []float64, threshold float64) (*CachedQuery, string, bool) {
 	if threshold == 0 {
-		threshold = 0.95 // Default high threshold for semantic similarity
+		threshold = 0.95
 	}
-	
+
 	var bestMatch *CachedQuery
 	var bestKey string
 	var bestSimilarity float64
-	
+
 	now := time.Now()
-	
+
 	c.cache.Range(func(key, value interface{}) bool {
 		entry := value.(*cacheEntry)
-		
-		// Skip expired entries
+
 		if now.After(entry.expiresAt) {
 			return true
 		}
-		
-		// Compute similarity
+
 		similarity, err := CosineSimilarity(embedding, entry.value.Embedding)
 		if err != nil {
 			return true
 		}
-		
-		// Track best match
+
 		if similarity > bestSimilarity {
 			bestSimilarity = similarity
 			bestMatch = entry.value
 			bestKey = key.(string)
 		}
-		
+
 		return true
 	})
-	
+
 	if bestSimilarity >= threshold {
 		c.recordHit()
 		return bestMatch, bestKey, true
 	}
-	
+
 	return nil, "", false
 }
-

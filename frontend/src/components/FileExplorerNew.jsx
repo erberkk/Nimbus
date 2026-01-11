@@ -8,7 +8,6 @@ import { useDialogs } from '../hooks/useDialogs';
 import { useUIState } from '../hooks/useUIState';
 import FileExplorerHeader from './FileExplorerHeader';
 import FileExplorerContent from './FileExplorerContent';
-import FileExplorerContextMenu from './FileExplorerContextMenu';
 import FileExplorerDialogs from './FileExplorerDialogs';
 import MoveDialog from './MoveDialog';
 import React, { useState } from 'react';
@@ -29,6 +28,7 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home', chatFile, onChatFil
 
   useImperativeHandle(ref, () => ({
     handleCreateFolder: fileExplorer.createFolder,
+    loadContents: fileExplorer.loadContents,
   }));
 
   useEffect(() => {
@@ -73,7 +73,9 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home', chatFile, onChatFil
   };
 
   const handleUploadSuccess = () => {
-    uiState.triggerRefresh();
+    // Doğrudan içeriği yenile (refresh trigger'a bağımlı kalmadan)
+    fileExplorer.loadContents();
+    uiState.triggerRefresh(); // UI state'i de güncelle
   };
 
   const handleMenuOpen = (event, item) => {
@@ -101,6 +103,10 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home', chatFile, onChatFil
 
   const handleSearchChange = (query) => {
     setSearchQuery(query);
+  };
+
+  const handleSearchClear = () => {
+    setSearchQuery('');
   };
 
   return (
@@ -136,24 +142,13 @@ const FileExplorerNew = forwardRef(({ selectedMenu = 'home', chatFile, onChatFil
         onMove={handleOpenMoveDialog}
         onToggleStar={fileExplorer.toggleStar}
         onRestore={fileExplorer.restoreItem}
+        onPermanentDelete={fileExplorer.permanentDelete}
         chatFile={chatFile}
         onChatFileCleared={onChatFileCleared}
         searchQuery={searchQuery}
+        onSearchClear={handleSearchClear}
       />
 
-      <FileExplorerContextMenu
-        menuAnchor={uiState.menuAnchor}
-        selectedItem={uiState.selectedItem}
-        onClose={handleMenuClose}
-        onDownloadFile={handleDownloadFile}
-        onDeleteFile={handleDeleteFile}
-        onDeleteFolder={handleDeleteFolder}
-        onCreateFolder={dialogs.openCreateFolder}
-        onFileUpload={dialogs.openFileUpload}
-        onMove={handleOpenMoveDialog}
-        onToggleStar={fileExplorer.toggleStar}
-        onRestore={fileExplorer.restoreItem}
-      />
 
       <FileExplorerDialogs
         dialogs={dialogs}

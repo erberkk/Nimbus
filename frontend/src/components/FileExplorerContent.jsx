@@ -35,6 +35,7 @@ import NimbusChatPanel from './NimbusChatPanel';
 import FileInfoPanel from './FileInfoPanel';
 import { isPreviewable, formatFileSize, formatDate } from '../utils/fileUtils';
 import { formatRelativeTime, getFileTypeColor } from '../utils/fileTypeUtils';
+import { searchApi } from '../services/api';
 
 const MotionBox = motion.create(Box);
 
@@ -54,9 +55,11 @@ const FileExplorerContent = ({
   onMove,
   onToggleStar,
   onRestore,
+  onPermanentDelete,
   chatFile,
   onChatFileCleared,
   searchQuery,
+  onSearchClear,
 }) => {
   const { t } = useTranslation();
   // Chat panel state
@@ -79,17 +82,10 @@ const FileExplorerContent = ({
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [selectedFileForInfo, setSelectedFileForInfo] = useState(null);
 
-  // Context menu handler - must be defined before any early returns
-  const handleEmptyContextMenu = useCallback(
-    e => {
-      if (e.target === e.currentTarget || e.target.closest('[data-context-menu-handled]')) {
-        return;
-      }
-      e.preventDefault();
-      onMenuOpen(e, null);
-    },
-    [onMenuOpen]
-  );
+  // Backend search state
+  const [searchResults, setSearchResults] = useState({ files: [], folders: [] });
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   // Nimbus'a Sor fonksiyonu
   const handleAskNimbus = file => {
@@ -115,26 +111,64 @@ const FileExplorerContent = ({
     setSelectedFileForInfo(null);
   };
 
-  // Filter folders and files based on search query
-  const filteredFolders = useMemo(() => {
-    if (!searchQuery || !searchQuery.trim()) {
-      return fileExplorer.folders;
+  // Backend search effect - search when query is 3+ characters
+  useEffect(() => {
+    const performSearch = async () => {
+      const query = searchQuery?.trim();
+      
+      if (!query || query.length < 3) {
+        setSearchResults({ files: [], folders: [] });
+        setSearchError('');
+        setIsSearching(false);
+        return;
+      }
+
+      try {
+        setIsSearching(true);
+        setSearchError('');
+        const results = await searchApi.search(query);
+        setSearchResults(results || { files: [], folders: [] });
+      } catch (error) {
+        setSearchError('Arama sırasında bir hata oluştu');
+        setSearchResults({ files: [], folders: [] });
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(performSearch, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
+  // Handle folder open from search results - clear search and navigate
+  const handleFolderOpenFromSearch = useCallback((folder) => {
+    if (searchQuery && searchQuery.trim().length >= 3 && onSearchClear) {
+      onSearchClear();
     }
-    const query = searchQuery.toLowerCase().trim();
-    return fileExplorer.folders.filter(folder =>
-      (folder.name || '').toLowerCase().includes(query)
-    );
-  }, [fileExplorer.folders, searchQuery]);
+    if (onFolderOpen) {
+      onFolderOpen(folder);
+    }
+  }, [searchQuery, onSearchClear, onFolderOpen]);
+
+  // Use search results if searching, otherwise use current folder contents
+  const filteredFolders = useMemo(() => {
+    if (searchQuery && searchQuery.trim().length >= 3) {
+      // Normalize search results to match normal folder structure
+      return (searchResults.folders || []).map(folder => ({
+        ...folder,
+        // Ensure id is present
+        id: folder.id || folder._id,
+      }));
+    }
+    return fileExplorer.folders;
+  }, [searchQuery, searchResults.folders, fileExplorer.folders]);
 
   const filteredFiles = useMemo(() => {
-    if (!searchQuery || !searchQuery.trim()) {
-      return fileExplorer.files;
+    if (searchQuery && searchQuery.trim().length >= 3) {
+      return searchResults.files || [];
     }
-    const query = searchQuery.toLowerCase().trim();
-    return fileExplorer.files.filter(file =>
-      (file.filename || file.name || '').toLowerCase().includes(query)
-    );
-  }, [fileExplorer.files, searchQuery]);
+    return fileExplorer.files;
+  }, [searchQuery, searchResults.files, fileExplorer.files]);
 
   // Direkt dosya yükleme fonksiyonu
   const handleDirectFileUpload = async files => {
@@ -442,7 +476,6 @@ const FileExplorerContent = ({
   return (
     <Box
       sx={{ position: 'relative', height: '100%', width: '100%' }}
-      onContextMenu={handleEmptyContextMenu}
       onDragEnter={e => {
         e.preventDefault();
         e.stopPropagation();
@@ -469,6 +502,14 @@ const FileExplorerContent = ({
 
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
           const files = Array.from(e.dataTransfer.files);
+          
+          // Klasör entry'si kontrolü (size: 0, type: '' -> klasör)
+          const hasEmptyFolder = files.some(file => file.size === 0 && file.type === '');
+          if (hasEmptyFolder) {
+            window.toast?.error('Tarayıcılar drag & drop ile klasör yüklemeyi desteklemiyor. Lütfen "Klasör Seç" butonunu kullanın.');
+            return;
+          }
+          
           await handleDirectFileUpload(files);
         }
       }}
@@ -650,13 +691,15 @@ const FileExplorerContent = ({
                         >
                           <FolderCard
                             folder={folder}
-                            onOpen={onFolderOpen}
+                            onOpen={searchQuery && searchQuery.trim().length >= 3 ? handleFolderOpenFromSearch : onFolderOpen}
                             onDelete={onFolderDelete}
                             onShare={folder => onShare(folder, 'folder')}
                             onMove={onMove}
                             onToggleStar={onToggleStar}
                             onRestore={onRestore}
+                            onPermanentDelete={onPermanentDelete}
                             onMenuOpen={onMenuOpen}
+                            showPath={searchQuery && searchQuery.trim().length >= 3}
                           />
                         </MotionBox>
                       </Grid>
@@ -698,7 +741,9 @@ const FileExplorerContent = ({
                             onMove={onMove}
                             onToggleStar={onToggleStar}
                             onRestore={onRestore}
+                            onPermanentDelete={onPermanentDelete}
                             onMenuOpen={onMenuOpen}
+                            showPath={searchQuery && searchQuery.trim().length >= 3}
                           />
                         </MotionBox>
                       </Grid>
@@ -789,7 +834,7 @@ const FileExplorerContent = ({
                     <FolderRow
                       key={folder.id}
                       folder={folder}
-                      onFolderOpen={onFolderOpen}
+                      onFolderOpen={searchQuery && searchQuery.trim().length >= 3 ? handleFolderOpenFromSearch : onFolderOpen}
                       onShare={onShare}
                       onFolderDelete={onFolderDelete}
                       onMove={onMove}

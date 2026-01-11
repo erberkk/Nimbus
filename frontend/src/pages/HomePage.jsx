@@ -8,7 +8,7 @@ import FileUpload from '../components/FileUpload';
 const HomePage = () => {
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [fileUploadOpen, setFileUploadOpen] = useState(false);
-  const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'folder' | 'both'
+  const [uploadMode, setUploadMode] = useState('file');
   
   // Load selectedMenu from localStorage on mount
   const getInitialMenu = () => {
@@ -21,8 +21,9 @@ const HomePage = () => {
   };
   
   const [selectedMenu, setSelectedMenu] = useState(getInitialMenu);
-  const [chatFile, setChatFile] = useState(null); // File to open in chat panel
+  const [chatFile, setChatFile] = useState(null);
   const fileExplorerRef = useRef();
+  const sidebarRef = useRef();
   
   // Save selectedMenu to localStorage whenever it changes
   useEffect(() => {
@@ -39,6 +40,11 @@ const HomePage = () => {
 
   const handleFileUpload = () => {
     setUploadMode('file');
+    setFileUploadOpen(true);
+  };
+
+  const handleFolderUpload = () => {
+    setUploadMode('folder');
     setFileUploadOpen(true);
   };
 
@@ -62,8 +68,10 @@ const HomePage = () => {
     >
       {/* Sidebar */}
       <Sidebar
+        ref={sidebarRef}
         onCreateFolder={handleCreateFolder}
         onFileUpload={handleFileUpload}
+        onFolderUpload={handleFolderUpload}
         onMenuChange={handleMenuChange}
         selectedMenu={selectedMenu}
         onConversationClick={file => {
@@ -97,7 +105,6 @@ const HomePage = () => {
         open={createFolderOpen}
         onClose={() => setCreateFolderOpen(false)}
         onSubmit={async folderData => {
-          // Use FileExplorerNew's handleCreateFolder function
           if (fileExplorerRef.current?.handleCreateFolder) {
             await fileExplorerRef.current.handleCreateFolder(folderData);
           } else {
@@ -110,6 +117,12 @@ const HomePage = () => {
         open={fileUploadOpen}
         onClose={() => setFileUploadOpen(false)}
         onUploadSuccess={() => {
+          if (fileExplorerRef.current?.loadContents) {
+            fileExplorerRef.current.loadContents();
+          }
+          if (sidebarRef.current?.refreshStorage) {
+            sidebarRef.current.refreshStorage();
+          }
           setFileUploadOpen(false);
         }}
         mode={uploadMode}

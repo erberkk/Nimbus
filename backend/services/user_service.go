@@ -38,12 +38,11 @@ func (us *UserService) GetUsersByIDs(userIDs []string) ([]models.User, error) {
 		return []models.User{}, nil
 	}
 
-	// Convert string IDs to ObjectIDs
 	objectIDs := make([]primitive.ObjectID, 0, len(userIDs))
 	for _, userID := range userIDs {
 		userOID, err := primitive.ObjectIDFromHex(userID)
 		if err != nil {
-			continue // Skip invalid IDs
+			continue
 		}
 		objectIDs = append(objectIDs, userOID)
 	}

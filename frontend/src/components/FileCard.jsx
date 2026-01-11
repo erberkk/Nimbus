@@ -52,7 +52,9 @@ const FileCard = ({
   onInfo,
   onToggleStar,
   onRestore,
+  onPermanentDelete,
   onMenuOpen,
+  showPath = false,
 }) => {
   const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState(null);
@@ -142,6 +144,24 @@ const FileCard = ({
           {file.filename}
         </Typography>
 
+        {showPath && file.path && (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{
+              display: 'block',
+              mb: 0.5,
+              fontSize: '0.7rem',
+              opacity: 0.7,
+              fontStyle: 'italic',
+            }}
+            noWrap
+            title={file.path}
+          >
+            📁 {file.path}
+          </Typography>
+        )}
+
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Typography variant="body2" color="text.secondary">
             {formatFileSize(file.size)}
@@ -221,6 +241,7 @@ const FileCard = ({
         onToggleStar={onToggleStar}
         onRestore={onRestore}
         onDelete={onDelete}
+        onPermanentDelete={onPermanentDelete}
       />
     </MotionCard>
   );

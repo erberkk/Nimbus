@@ -31,7 +31,6 @@ const LandingPage = () => {
   const [languageMenu, setLanguageMenu] = useState(null);
   const { isAuthenticated, loading } = useAuth();
 
-  // Login olduysa otomatik dashboard'a yönlendir
   useEffect(() => {
     if (!loading && isAuthenticated) {
       navigate('/dashboard', { replace: true });

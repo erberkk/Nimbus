@@ -8,7 +8,7 @@ import SecurityIcon from '@mui/icons-material/Security';
 import SpeedIcon from '@mui/icons-material/Speed';
 import { authApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 const MotionCard = motion.create(Card);
 const MotionBox = motion.create(Box);
 
@@ -17,7 +17,6 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, loading } = useAuth();
 
-  // Zaten login olduysa dashboard'a yönlendir
   useEffect(() => {
     if (!loading && isAuthenticated) {
       navigate('/dashboard', { replace: true });
@@ -31,11 +30,7 @@ const LoginPage = () => {
   const features = [
     {
       icon: (
-        <img
-          src="/nimbus_logo.png"
-          alt="Cloud Storage"
-          style={{ width: 56, height: 56, objectFit: 'contain' }}
-        />
+        <CloudUploadIcon sx={{ fontSize: 40, color: '#FBBF24' }} />
       ),
       title: t('cloud_storage'),
       description: t('cloud_storage_desc'),

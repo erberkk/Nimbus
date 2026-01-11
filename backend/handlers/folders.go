@@ -35,7 +35,6 @@ func CreateFolder(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasör oluştur
 		folder, err := services.FolderServiceInstance.CreateFolder(userID, req.Name, req.Color, req.FolderID)
 		if err != nil {
 			log.Printf("Klasör oluşturma hatası: %v", err)
@@ -81,10 +80,8 @@ func GetUserFolders(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasör response'ları formatla
 		folderList := make([]models.FolderResponse, 0, len(folders))
 		for _, folder := range folders {
-			// Her klasördeki dosya sayısını hesapla
 			count, _ := services.FolderServiceInstance.GetFolderItemCount(folder.ID.Hex())
 
 			size, _ := services.FolderServiceInstance.GetFolderSize(folder.ID.Hex())
@@ -125,7 +122,6 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasör bilgisini getir ve erişim kontrolü yap
 		folder, err := services.FolderServiceInstance.GetFolderByID(folderID)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
@@ -133,7 +129,6 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Owner veya access list kontrolü
 		canAccess, err := helpers.CanUserAccess(userID, "folder", folderID, helpers.AccessLevelRead)
 		if err != nil || !canAccess {
 			return c.Status(403).JSON(fiber.Map{
@@ -141,15 +136,11 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Starred only kontrolü (query parametresi)
 		starredOnly := c.Query("starred_only") == "true"
 
-		// Klasördeki alt klasörleri ve dosyaları getir
 		var subFolders []models.Folder
 		var files []models.File
 
-		// Eğer klasör silinmişse (DeletedAt != nil), silinmiş içeriği getir.
-		// Değilse normal içeriği getir.
 		if folder.DeletedAt != nil {
 			subFolders, err = services.FolderServiceInstance.GetTrashedSubFolders(folderID)
 		} else {
@@ -184,10 +175,8 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasör response'ları formatla
 		folderList := make([]models.FolderResponse, 0, len(subFolders))
 		for _, subFolder := range subFolders {
-			// Her alt klasörün toplam item sayısını hesapla
 			count, err := services.FolderServiceInstance.GetFolderItemCount(subFolder.ID.Hex())
 			if err != nil {
 				log.Printf("Klasör item count hesaplama hatası: %v", err)
@@ -210,7 +199,6 @@ func GetFolderContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Dosya response'ları formatla
 		fileList := make([]models.FileResponse, 0, len(files))
 		for _, file := range files {
 			fileList = append(fileList, models.FileResponse{
@@ -265,7 +253,6 @@ func GetStorageUsage(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Kullanıcının toplam depolama kullanımını hesapla
 		totalSize, err := services.FolderServiceInstance.GetUserStorageUsage(userID)
 		if err != nil {
 			log.Printf("Depolama kullanımı hesaplama hatası: %v", err)
@@ -274,7 +261,6 @@ func GetStorageUsage(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Byte'dan GB'a çevir ve format'la
 		const GB = 1024 * 1024 * 1024
 		totalGB := float64(totalSize) / GB
 
@@ -304,7 +290,6 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Root klasörleri getir (folder_id olmayan klasörler)
 		folders, err := services.FolderServiceInstance.GetSubFolders("")
 		if err != nil {
 			log.Printf("Root klasör listesi alma hatası: %v", err)
@@ -313,7 +298,6 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Sadece kullanıcının klasörlerini filtrele
 		userFolders := make([]models.Folder, 0)
 		for _, folder := range folders {
 			if folder.UserID == userID {
@@ -321,7 +305,6 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 			}
 		}
 
-		// Root dosyaları getir (folder_id = null)
 		files, err := services.FolderServiceInstance.GetRootFiles(userID)
 		if err != nil {
 			log.Printf("Root dosyaları alma hatası: %v", err)
@@ -330,7 +313,6 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasör response'ları
 		folderList := make([]models.FolderResponse, 0, len(userFolders))
 		for _, folder := range userFolders {
 			count, _ := services.FolderServiceInstance.GetFolderItemCount(folder.ID.Hex())
@@ -350,7 +332,6 @@ func GetRootContents(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Dosya response'ları
 		fileList := make([]models.FileResponse, 0, len(files))
 		for _, file := range files {
 			fileList = append(fileList, models.FileResponse{
@@ -407,7 +388,6 @@ func UpdateFolder(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasör owner kontrolü
 		folder, err := services.FolderServiceInstance.GetFolderByID(folderID)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
@@ -421,7 +401,6 @@ func UpdateFolder(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Güncellemeleri hazırla
 		updates := bson.M{}
 		if req.Name != "" {
 			updates["name"] = req.Name
@@ -436,7 +415,6 @@ func UpdateFolder(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Klasörü güncelle
 		if err := services.FolderServiceInstance.UpdateFolder(folderID, updates); err != nil {
 			log.Printf("Klasör güncelleme hatası: %v", err)
 			return c.Status(500).JSON(fiber.Map{
@@ -469,7 +447,6 @@ func DeleteFolder(cfg *config.Config) fiber.Handler {
 
 		isPermanent := c.Query("permanent") == "true"
 
-		// Klasör owner kontrolü
 		folder, err := services.FolderServiceInstance.GetFolderByID(folderID)
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{
@@ -484,7 +461,6 @@ func DeleteFolder(cfg *config.Config) fiber.Handler {
 		}
 
 		if isPermanent {
-			// Klasörü sil (boşsa)
 			if err := services.FolderServiceInstance.DeleteFolder(folderID); err != nil {
 				log.Printf("Klasör silme hatası: %v", err)
 				return c.Status(400).JSON(fiber.Map{
@@ -495,7 +471,6 @@ func DeleteFolder(cfg *config.Config) fiber.Handler {
 				"message": "Klasör kalıcı olarak silindi",
 			})
 		} else {
-			// Soft Delete
 			if err := services.FolderServiceInstance.SoftDeleteFolder(folderID); err != nil {
 				log.Printf("Klasör silme hatası: %v", err)
 				return c.Status(400).JSON(fiber.Map{

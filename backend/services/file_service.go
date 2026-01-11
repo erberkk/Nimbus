@@ -23,7 +23,6 @@ func (fs *FileService) CreateFileRecord(userID, filename string, size int64, con
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Public link oluştur
 	publicLink, err := helpers.GeneratePublicLink()
 	if err != nil {
 		return nil, fmt.Errorf("public link oluşturulamadı: %v", err)
@@ -38,18 +37,15 @@ func (fs *FileService) CreateFileRecord(userID, filename string, size int64, con
 		ContentType: contentType,
 		MinioPath:   minioPath,
 		PublicLink:  publicLink,
-		AccessList:  []models.AccessEntry{}, // Initialize empty access list
-		Ancestors:   []primitive.ObjectID{}, // Başlangıçta boş
+		AccessList:  []models.AccessEntry{},
+		Ancestors:   []primitive.ObjectID{},
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
-	// Eğer folderID varsa, parent klasörün ancestors'ını al ve kendi ID'mizi ekle
 	if folderID != nil && *folderID != "" {
-		// Önce bu klasörün bilgilerini al
 		parentFolder, err := FolderServiceInstance.GetFolderByID(*folderID)
 		if err == nil {
-			// Parent'ın ancestors'ına kendi ID'mizi ekle
 			file.Ancestors = append(parentFolder.Ancestors, parentFolder.ID)
 			file.ParentID = &parentFolder.ID
 		}
@@ -262,10 +258,6 @@ func (fs *FileService) GetTrashFiles(userID string) ([]models.File, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Aggregation pipeline:
-	// 1. Match deleted files for user
-	// 2. Lookup parent folder
-	// 3. Filter out files whose parent folder is also deleted
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$match", Value: bson.D{
 			{Key: "user_id", Value: userID},
@@ -317,7 +309,6 @@ func (fs *FileService) ToggleFileStar(fileID string) (bool, error) {
 		return false, fmt.Errorf("geçersiz dosya ID'si: %v", err)
 	}
 
-	// Dosyayı bul ve is_starred değerini al
 	var file models.File
 	err = database.FileCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&file)
 	if err != nil {
@@ -381,7 +372,6 @@ func (fs *FileService) RestoreFile(fileID string) error {
 		return fmt.Errorf("geçersiz dosya ID'si: %v", err)
 	}
 
-	// Dosyayı getir
 	var file models.File
 	err = database.FileCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&file)
 	if err != nil {
@@ -395,23 +385,18 @@ func (fs *FileService) RestoreFile(fileID string) error {
 		},
 	}
 
-	// Eğer dosya bir klasöre bağlıysa, o klasörün parent hiyerarşisini kontrol et
 	if file.FolderID != nil && *file.FolderID != "" {
 		parentFolder, err := FolderServiceInstance.GetFolderByID(*file.FolderID)
 		if err != nil || parentFolder == nil {
-			// Parent klasör bulunamadı - dosya root'a taşın
 			update["$set"].(bson.M)["folder_id"] = nil
 			update["$set"].(bson.M)["parent_id"] = nil
 			update["$set"].(bson.M)["ancestors"] = []primitive.ObjectID{}
 		} else if parentFolder.DeletedAt != nil {
-			// Parent klasör silinmiş - parent hiyerarşisini restore et
 			if err := FolderServiceInstance.restoreParentHierarchy(ctx, parentFolder); err != nil {
-				// Hata durumunda bile dosyayı restore et (parent'ı root'a taşı)
 				update["$set"].(bson.M)["folder_id"] = nil
 				update["$set"].(bson.M)["parent_id"] = nil
 				update["$set"].(bson.M)["ancestors"] = []primitive.ObjectID{}
 			}
-			// Aksi takdirde dosya original parent'ında kalır (parent hiyerarşisi restore edildi)
 		}
 	}
 
@@ -437,7 +422,6 @@ func (fs *FileService) MoveFile(fileID string, targetFolderID *string) error {
 		return fmt.Errorf("geçersiz dosya ID'si: %v", err)
 	}
 
-	// Yeni Ancestors ve ParentID hazırla
 	var newAncestors []primitive.ObjectID
 	var newParentID *primitive.ObjectID
 

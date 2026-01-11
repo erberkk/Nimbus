@@ -12,7 +12,6 @@ export const useAuth = () => {
     const tokenFromUrl = urlParams.get('token');
 
     if (tokenFromUrl) {
-      // URL'yi temizle
       const newUrl = window.location.origin + window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
 
@@ -30,7 +29,6 @@ export const useAuth = () => {
     } catch (error) {
       console.error('Profil yükleme hatası:', error);
       window.toast?.error(t('unauthorized'));
-      // Token geçersiz, temizle
       api.setToken(null);
       setTokenState(null);
       return null;
@@ -61,17 +59,14 @@ export const useAuth = () => {
     const initAuth = async () => {
       setLoading(true);
 
-      // URL'den token al
       const tokenFromUrl = getTokenFromUrl();
 
-      // LocalStorage veya URL'den token al
       let currentToken = tokenFromUrl || localStorage.getItem('nimbus_token');
 
       if (currentToken) {
         api.setToken(currentToken);
         setTokenState(currentToken);
 
-        // Kullanıcı profilini yükle
         await loadProfile(currentToken);
       }
 

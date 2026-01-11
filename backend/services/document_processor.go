@@ -61,7 +61,6 @@ func (p *DocumentProcessor) ProcessDocumentAsync(fileID, minioPath, contentType 
 	go func() {
 		if err := p.processDocument(fileID, minioPath, contentType, nil); err != nil {
 			log.Printf("Error processing document %s: %v", fileID, err)
-			// Update file status to failed
 			p.updateFileStatus(fileID, "failed", err.Error(), 0)
 		}
 	}()
@@ -70,34 +69,27 @@ func (p *DocumentProcessor) ProcessDocumentAsync(fileID, minioPath, contentType 
 // ProcessDocumentWithDeduplication checks for duplicate file and processes if unique
 func (p *DocumentProcessor) ProcessDocumentWithDeduplication(fileID, minioPath, contentType string, fileBytes []byte) {
 	go func() {
-		// Step 1: Check deduplication if enabled
 		if p.config.EnableDeduplication && fileBytes != nil {
 			fileHash := chunks.ComputeFileHash(fileBytes)
 
-			// Store hash for this file
 			if err := p.deduplicator.StoreFileHash(fileID, fileHash); err != nil {
 				log.Printf("Warning: failed to store file hash: %v", err)
 			}
 
-			// Check for duplicates
 			duplicate, err := p.deduplicator.CheckDuplicate(fileHash)
 			if err != nil {
 				log.Printf("Warning: deduplication check failed: %v", err)
-				// Continue with normal processing
 			} else if duplicate != nil {
-				// Found duplicate - reuse embeddings
 				log.Printf("Deduplication hit: file %s is duplicate of %s", fileID, duplicate.ExistingFileID)
 				if err := p.deduplicator.LinkToExistingEmbeddings(fileID, duplicate.ExistingFileID, duplicate.ChunkCount); err != nil {
 					log.Printf("Error linking to existing embeddings: %v", err)
-					// Fall back to normal processing
 				} else {
 					log.Printf("Successfully reused embeddings for file %s", fileID)
-					return // Done - no need to process
+					return
 				}
 			}
 		}
 
-		// Step 2: Process normally if not duplicate or deduplication disabled
 		if err := p.processDocument(fileID, minioPath, contentType, fileBytes); err != nil {
 			log.Printf("Error processing document %s: %v", fileID, err)
 			p.updateFileStatus(fileID, "failed", err.Error(), 0)
@@ -110,19 +102,15 @@ func (p *DocumentProcessor) processDocument(fileID, minioPath, contentType strin
 	startTime := time.Now()
 	log.Printf("Starting document processing for file %s", fileID)
 
-	// Update status to processing
 	if err := p.updateFileStatus(fileID, "processing", "", 0); err != nil {
 		return fmt.Errorf("failed to update status to processing: %w", err)
 	}
 
-	// Step 1: Extract text from document
 	var text string
 	var err error
 	if fileBytes != nil {
-		// Use provided bytes (for deduplication flow)
 		text, err = p.extractTextFromBytes(fileBytes, contentType)
 	} else {
-		// Download from MinIO
 		text, err = p.extractText(minioPath, contentType)
 	}
 	if err != nil {
@@ -135,17 +123,14 @@ func (p *DocumentProcessor) processDocument(fileID, minioPath, contentType strin
 
 	log.Printf("Extracted %d characters from document %s", len(text), fileID)
 
-	// Step 2: Normalize Text
 	log.Printf("Normalizing text for %s...", fileID)
 	normalizer := chunks.NewTextNormalizer(chunks.DefaultNormalizerConfig())
 	normalizedText := normalizer.Normalize(text)
 
-	// Step 3: Process Tables
 	log.Printf("Processing tables for %s...", fileID)
 	tableProcessor := chunks.NewTableProcessor()
 	segments := tableProcessor.Process(normalizedText)
 
-	// Step 4: Split into Chunks
 	log.Printf("Splitting text into chunks for %s...", fileID)
 	splitter := chunks.NewSemanticTextSplitter(chunks.DefaultChunkerConfig())
 	semanticChunks := splitter.SplitSegments(segments)
@@ -156,38 +141,28 @@ func (p *DocumentProcessor) processDocument(fileID, minioPath, contentType strin
 		return fmt.Errorf("no chunks created from text")
 	}
 
-	// Step 5: Generate embeddings and store in Chroma
-	// Extract key terms for cross-referencing (optional optimization)
 	termExtractor := retrieval.NewKeyTermExtractor()
 
 	var chromaChunks []ChunkData
 	for _, chunk := range semanticChunks {
-		// Normalize for embedding (lighter normalization)
 		embeddingText := chunks.NormalizeForEmbedding(chunk.Text)
 
-		// Generate embedding for this chunk
 		embedding, err := p.ollamaService.GenerateEmbedding(embeddingText)
 		if err != nil {
 			log.Printf("Warning: failed to generate embedding for chunk %d: %v", chunk.Index, err)
-			continue // Skip this chunk but continue with others
+			continue
 		}
 
-		// Extract key terms from chunk for cross-referencing
 		keyTerms := termExtractor.Extract(chunk.Text)
 
-		// Extract additional metadata from table structures
 		tableMetadata := extractTableMetadata(chunk.Text)
 		if len(tableMetadata) > 0 {
-			// Add table-specific terms to key terms
 			keyTerms = append(keyTerms, tableMetadata...)
-			// Remove duplicates
 			keyTerms = removeDuplicates(keyTerms)
 		}
 
-		// Detect if chunk contains technical terms or definitions
 		chunkType := detectChunkType(chunk.Text, keyTerms)
 
-		// Merge chunk metadata with our standard metadata
 		metadata := map[string]interface{}{
 			"file_id":     fileID,
 			"chunk_index": chunk.Index,
@@ -196,18 +171,13 @@ func (p *DocumentProcessor) processDocument(fileID, minioPath, contentType strin
 			"end_char":    chunk.EndChar,
 		}
 
-		// Add cross-referencing metadata if we found key terms
 		if len(keyTerms) > 0 {
-			// Chroma only accepts scalar values in metadata (string, number, bool)
-			// Convert array to comma-separated string
 			metadata["key_terms"] = strings.Join(keyTerms, ",")
 			metadata["term_count"] = len(keyTerms)
 		}
 
-		// Add chunk type for better retrieval
 		metadata["chunk_type"] = chunkType
 
-		// Add chunk metadata
 		for k, v := range chunk.Metadata {
 			metadata[k] = v
 		}
@@ -228,14 +198,12 @@ func (p *DocumentProcessor) processDocument(fileID, minioPath, contentType strin
 		return fmt.Errorf("failed to generate any embeddings")
 	}
 
-	// Step 5: Add to Chroma
 	if err := p.chromaService.AddDocuments(chromaChunks); err != nil {
 		return fmt.Errorf("failed to add documents to Chroma: %w", err)
 	}
 
 	log.Printf("Successfully added %d chunks to Chroma for document %s", len(chromaChunks), fileID)
 
-	// Step 6: Update file status to completed
 	if err := p.updateFileStatus(fileID, "completed", "", len(chromaChunks)); err != nil {
 		return fmt.Errorf("failed to update status to completed: %w", err)
 	}
@@ -247,7 +215,6 @@ func (p *DocumentProcessor) processDocument(fileID, minioPath, contentType strin
 
 // extractText extracts text from PDF or DOCX files
 func (p *DocumentProcessor) extractText(minioPath string, contentType string) (string, error) {
-	// Download file from MinIO
 	ctx := context.Background()
 	reader, err := p.minioService.Client.GetObject(ctx, "user-files", minioPath, minio.GetObjectOptions{})
 	if err != nil {
@@ -255,7 +222,6 @@ func (p *DocumentProcessor) extractText(minioPath string, contentType string) (s
 	}
 	defer reader.Close()
 
-	// Read entire file into memory (for PDF library)
 	fileBytes, err := io.ReadAll(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
@@ -268,7 +234,6 @@ func (p *DocumentProcessor) extractText(minioPath string, contentType string) (s
 func (p *DocumentProcessor) extractTextFromBytes(fileBytes []byte, contentType string) (string, error) {
 	contentTypeLower := strings.ToLower(contentType)
 
-	// Extract based on content type
 	if strings.Contains(contentTypeLower, "pdf") {
 		return p.extractTextFromPDF(fileBytes)
 	} else if strings.Contains(contentTypeLower, "wordprocessingml") || strings.Contains(contentTypeLower, "msword") {
@@ -398,7 +363,6 @@ func (p *DocumentProcessor) updateFileStatus(fileID, status, errorMsg string, ch
 func detectChunkType(text string, keyTerms []string) string {
 	lowerText := strings.ToLower(text)
 
-	// Check for comparison/table patterns FIRST (more specific than definitions)
 	if strings.Contains(lowerText, "comparison") ||
 		strings.Contains(lowerText, "difference") ||
 		strings.Contains(lowerText, "versus") ||
@@ -406,11 +370,10 @@ func detectChunkType(text string, keyTerms []string) string {
 		return "comparison"
 	}
 
-	// Check for list patterns
 	listPatterns := []string{
-		`^\s*[\d•\-\*]`,                // Starts with bullet or number
-		`\n\s*[\d•\-\*]`,               // Contains bullets
-		`(first|second|third|finally)`, // Enumeration
+		`^\s*[\d•\-\*]`,
+		`\n\s*[\d•\-\*]`,
+		`(first|second|third|finally)`,
 	}
 	for _, pattern := range listPatterns {
 		if matched, _ := regexp.MatchString(pattern, text); matched {
@@ -418,7 +381,6 @@ func detectChunkType(text string, keyTerms []string) string {
 		}
 	}
 
-	// Check for table-like structure (multiple columns/rows)
 	lines := strings.Split(text, "\n")
 	if len(lines) > 3 {
 		tabCount := 0
@@ -432,7 +394,6 @@ func detectChunkType(text string, keyTerms []string) string {
 		}
 	}
 
-	// Check for high density of technical terms
 	if len(keyTerms) > 5 && len(strings.Fields(text)) < 200 {
 		return "technical"
 	}
@@ -450,32 +411,25 @@ func extractTableMetadata(text string) []string {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 
-		// Extract from table titles (e.g., "Comparison of WiFi 5-6-7")
 		if strings.Contains(strings.ToLower(line), "comparison") {
-			// Extract technology names with numbers (e.g., "WiFi 5", "WiFi 6")
 			techPattern := regexp.MustCompile(`(?i)(wifi|wi-fi|802\.11[a-z]*)\s*(\d+|[a-z]{1,2})`)
 			matches := techPattern.FindAllStringSubmatch(line, -1)
 			for _, match := range matches {
 				if len(match) >= 3 {
-					// Add both "wifi" and "wifi 5" variants
 					tech := strings.ToLower(match[1])
 					version := match[2]
 					metadata = append(metadata, tech, tech+" "+version)
 				}
 			}
 
-			// Add "comparison" as a key term
 			metadata = append(metadata, "comparison")
 		}
 
-		// Extract from bullet points (e.g., "• Wi-Fi 5: 2013")
 		if strings.HasPrefix(line, "•") || strings.HasPrefix(line, "-") {
-			// Extract technology names before colons
 			parts := strings.Split(line, ":")
 			if len(parts) >= 2 {
 				tech := strings.TrimSpace(strings.TrimLeft(parts[0], "•-"))
 				tech = strings.ToLower(tech)
-				// Clean and add
 				tech = regexp.MustCompile(`[^\w\s-]`).ReplaceAllString(tech, "")
 				if len(tech) > 2 {
 					metadata = append(metadata, tech)
@@ -483,7 +437,6 @@ func extractTableMetadata(text string) []string {
 			}
 		}
 
-		// Extract from row headers (e.g., "Release Year:", "Frequency Bands:")
 		if strings.HasSuffix(line, ":") && !strings.HasPrefix(line, "•") {
 			header := strings.ToLower(strings.TrimSuffix(line, ":"))
 			words := strings.Fields(header)

@@ -23,7 +23,6 @@ func (s *ConversationService) GetOrCreateConversation(userID, fileID string) (*m
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Try to find existing conversation
 	var conversation models.Conversation
 	err := database.ConversationCollection.FindOne(ctx, bson.M{
 		"user_id": userID,
@@ -31,11 +30,9 @@ func (s *ConversationService) GetOrCreateConversation(userID, fileID string) (*m
 	}).Decode(&conversation)
 
 	if err == nil {
-		// Found existing conversation
 		return &conversation, nil
 	}
 
-	// Create new conversation
 	conversation = models.Conversation{
 		ID:        primitive.NewObjectID(),
 		FileID:    fileID,
@@ -58,12 +55,10 @@ func (s *ConversationService) AddMessage(userID, fileID string, message models.M
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Ensure message has timestamp
 	if message.Timestamp.IsZero() {
 		message.Timestamp = time.Now()
 	}
 
-	// Update or insert conversation
 	filter := bson.M{
 		"user_id": userID,
 		"file_id": fileID,
@@ -149,7 +144,6 @@ func (s *ConversationService) GetUserConversations(userID string) ([]models.Conv
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get all conversations for the user, ordered by updated_at descending
 	cursor, err := database.ConversationCollection.Find(ctx, bson.M{
 		"user_id": userID,
 	}, options.Find().SetSort(bson.M{"updated_at": -1}))
@@ -164,20 +158,15 @@ func (s *ConversationService) GetUserConversations(userID string) ([]models.Conv
 		return nil, fmt.Errorf("failed to decode conversations: %w", err)
 	}
 
-	// Get file information for each conversation
 	conversationsWithFile := make([]models.ConversationWithFile, 0, len(conversations))
 	for _, conv := range conversations {
-		// Get file information
 		file, err := FileServiceInstance.GetFileByID(conv.FileID)
 		if err != nil {
-			// Skip if file not found (might be deleted)
 			continue
 		}
 
-		// Check if user still has access to the file
 		hasAccess, err := helpers.CanUserAccess(userID, "file", conv.FileID, helpers.AccessLevelRead)
 		if err != nil || !hasAccess {
-			// Skip if user no longer has access
 			continue
 		}
 
