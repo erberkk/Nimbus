@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -26,6 +26,8 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   // Ultra ultra smooth renk döngüsü animasyonu
   const gradientAnimation = `
@@ -72,6 +74,12 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
       loadConversationHistory();
     }
   }, [isOpen, file]);
+
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isTyping, isOpen]);
 
   const loadConversationHistory = async () => {
     if (!file) return;
@@ -201,7 +209,7 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
   };
 
   const handleKeyPress = e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isTyping) {
       e.preventDefault();
       handleSendMessage();
     }
@@ -227,7 +235,7 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
             position: 'fixed',
             top: '64px',
             right: 0,
-            width: '400px',
+            width: '500px',
             height: 'calc(100vh - 64px)',
             zIndex: 1500,
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -244,6 +252,8 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
               borderBottom: '1px solid rgba(255,255,255,0.2)',
               background: 'rgba(255,255,255,0.1)',
               backdropFilter: 'blur(10px)',
+              position: 'relative',
+              zIndex: 1600,
             }}
           >
             <Box
@@ -272,6 +282,9 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
                 onClick={onClose}
                 sx={{
                   color: 'white',
+                  position: 'relative',
+                  zIndex: 1600,
+                  pointerEvents: 'auto',
                   '&:hover': {
                     background: 'rgba(255,255,255,0.1)',
                   },
@@ -318,6 +331,7 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
 
           {/* Messages */}
           <Box
+            ref={messagesContainerRef}
             sx={{
               flex: 1,
               overflow: 'auto',
@@ -325,6 +339,21 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
+              '&::-webkit-scrollbar': {
+                width: '6px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: 'transparent',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '10px',
+                '&:hover': {
+                  background: 'rgba(255,255,255,0.3)',
+                },
+              },
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(255,255,255,0.2) transparent',
             }}
           >
             {messages.map(message => (
@@ -524,6 +553,7 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
                 </Paper>
               </motion.div>
             )}
+            <div ref={messagesEndRef} />
           </Box>
 
           {/* Input */}
@@ -542,27 +572,55 @@ const NimbusChatPanel = ({ isOpen, onClose, file }) => {
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
+                disabled={isTyping}
                 variant="outlined"
                 size="small"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    background: 'rgba(255,255,255,0.9)',
+                    background: 'rgba(255,255,255,0.2)',
                     borderRadius: '20px',
+                    color: 'white',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.3)',
                     '& fieldset': {
                       border: 'none',
+                    },
+                    '&:hover': {
+                      background: 'rgba(255,255,255,0.25)',
+                      border: '1px solid rgba(255,255,255,0.4)',
                     },
                     '&:hover fieldset': {
                       border: 'none',
                     },
+                    '&.Mui-focused': {
+                      background: 'rgba(255,255,255,0.3)',
+                      border: '1px solid rgba(255,255,255,0.5)',
+                    },
                     '&.Mui-focused fieldset': {
-                      border: '2px solid rgba(255,255,255,0.5)',
+                      border: 'none',
+                    },
+                    '&.Mui-disabled': {
+                      background: 'rgba(255,255,255,0.1)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'rgba(255,255,255,0.5)',
+                    },
+                  },
+                  '& .MuiInputBase-input': {
+                    color: 'white',
+                    '&::placeholder': {
+                      color: 'rgba(255,255,255,0.7)',
+                      opacity: 1,
+                    },
+                    '&.Mui-disabled': {
+                      color: 'rgba(255,255,255,0.5)',
+                      WebkitTextFillColor: 'rgba(255,255,255,0.5)',
                     },
                   },
                 }}
               />
               <IconButton
                 onClick={handleSendMessage}
-                disabled={!inputValue.trim()}
+                disabled={!inputValue.trim() || isTyping}
                 sx={{
                   background: 'rgba(255,255,255,0.2)',
                   color: 'white',
