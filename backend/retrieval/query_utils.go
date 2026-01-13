@@ -74,8 +74,6 @@ func (e *KeyTermExtractor) Extract(query string) []string {
 }
 
 // ExtractNamedTerms extracts specific named terms from comparison queries
-// Example: "smishing vishing phishing farkı" → ["smishing", "vishing", "phishing"]
-// Example: "wifi 5 6 7 comparison" → ["wifi", "5", "6", "7"]
 func (e *KeyTermExtractor) ExtractNamedTerms(query string) []string {
 	keyTerms := e.Extract(query)
 
